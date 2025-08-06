@@ -24,3 +24,6 @@ Design:
   - Apply global stats file to PCM Database
   - Export the PCM Database as CDB
   - First Cycling integration
+- The internal database can be queried to find the history of changes to individual stats and locate the update file that created the change.
+
+![Project Image](flow_img.jpg)
