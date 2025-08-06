@@ -3,6 +3,6 @@ repos:
     hooks:
       - id: pytest
         name: Run pytest
-        entry: .venv\\Scripts\\python.exe -m pytest
+        entry: .venv\\Scripts\\python.exe -m pytest tests
         language: system
         types: [python]
