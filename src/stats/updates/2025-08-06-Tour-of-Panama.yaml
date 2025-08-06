@@ -1,0 +1,15 @@
+name: "Tour of Panama"
+date: "2025-08-06"
+stat_updates:
+  - pcm_id: 1
+    name: "F. Archibold"
+    cob: 61
+    prl: 85
+    spr: 68 
+    res: 65
+    rec: 64 
+    hil: 69
+    att: 68
+  - pcm_id: 2
+    name: "G. Rojas Campos"
+    dh: 64

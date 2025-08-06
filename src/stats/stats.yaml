@@ -1,0 +1,36 @@
+1:
+  name: "F. Archibold"
+  first_cycling_id: 1
+  fla: 75
+  mo: 70
+  mm: 65
+  dh: 80
+  cob: 61
+  tt: 90
+  prl: 85
+  spr: 68
+  acc: 80
+  end: 70
+  res: 75
+  rec: 64
+  hil: 69
+  att: 68
+2:
+  name: "G. Rojas Campos"
+  first_cycling_id: 2
+  fla: 75
+  mo: 70
+  mm: 65
+  dh: 80
+  cob: 61
+  tt: 90
+  prl: 85
+  spr: 68
+  acc: 80
+  end: 70
+  res: 75
+  rec: 64
+  hil: 69
+  att: 68
+
+  
