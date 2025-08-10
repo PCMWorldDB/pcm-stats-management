@@ -1,8 +1,8 @@
 import os
 import pytest
 import yaml
-from src import api
-from src import commons 
+from src.model import api
+from src.utils import commons 
 
 STATS_PATH = commons.STATS_FILE_PATH
 
@@ -55,7 +55,7 @@ def test_validate_success(tmp_path):
     update = {
         "name": "Tour of Panama",
         "date": "2025-08-06",
-        "stat_updates": [
+        "stats": [
             {"pcm_id": 1, "name": "F. Archibold", "fla": 76},
             {"pcm_id": 2, "name": "G. Rojas Campos", "dh": 65}
         ]
@@ -68,7 +68,7 @@ def test_validate_missing_key(tmp_path):
     stats_file = write_stats_yaml(tmp_path)
     update = {
         "name": "Tour of Panama",
-        "stat_updates": [
+        "stats": [
             {"pcm_id": 1, "name": "F. Archibold", "fla": 76}
         ]
     }
@@ -81,7 +81,7 @@ def test_validate_invalid_pcm_id(tmp_path):
     update = {
         "name": "Tour of Panama",
         "date": "2025-08-06",
-        "stat_updates": [
+        "stats": [
             {"pcm_id": 999, "name": "Unknown Rider", "fla": 76}
         ]
     }

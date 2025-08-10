@@ -1,6 +1,8 @@
-name: "Tour of Panama"
+author: "PCM Database Team"
 date: "2025-08-06"
-stat_updates:
+description: "Tour of Panama 2025 updates"
+
+stats:
   - pcm_id: 1
     name: "F. Archibold"
     cob: 61
