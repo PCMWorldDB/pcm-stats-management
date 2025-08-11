@@ -1,53 +1,224 @@
 # PCM Stats Management CLI Tool
 
-This consolidated CLI tool replaces the multiple individual scripts in the `scripts/` folder with a single, unified command-line interface.
+The unified command-line interface for all PCM stats management operations. This tool consolidates functionality for processing changes, validating files, and importing data.
 
-## Usage
+## 🚀 Usage
 
+### Running the CLI
 ```bash
-python src/cli.py <command> [options]
+python -m src.pcm_cli <command> [options]
 ```
 
-## Available Commands
+## 📋 Available Commands
 
-### `process`
-Process change files (main CI/CD operation)
-- Creates or updates tracking database
-- Processes new YAML change files
-- Generates SQL insert statements
-- Creates processing summary for GitHub Actions
+### `process-changes`
+Processes change files for all namespaces automatically.
 
+**Purpose**: Main CI/CD operation that:
+- Scans all namespaces for new change files
+- Creates tracking databases if they don't exist
+- Processes YAML change files into SQL statements
+- Updates stats.yaml files with new data
+- Generates processing summaries
+
+**Usage**:
 ```bash
-python src/cli.py process
+python -m src.pcm_cli process-changes
 ```
+
+**Output**:
+- Generates `inserts.sql` files in each change directory
+- Updates `stats.yaml` files with new cyclist data
+- Creates or updates `tracking_db.sqlite` files
+- Prints processing summary in JSON format
 
 ### `validate-yaml`
-Validate YAML change files format
-- Checks YAML syntax
-- Validates required fields (name, date, stats)
-- Validates stats structure
+Validates all YAML files across all namespaces.
 
+**Purpose**: Comprehensive validation that checks:
+- YAML syntax correctness
+- Required fields presence
+- Data structure compliance
+- Both change files and stats files
+
+**Usage**:
 ```bash
-python src/cli.py validate-yaml
+python -m src.pcm_cli validate-yaml
 ```
 
-### `validate-setup`
-Validate repository structure and setup
-- Checks required files and directories
-- Validates Python imports
-- Validates GitHub Actions workflow syntax
-- Creates missing directories automatically
-- Generates setup report
+**Validation Rules**:
+- **Change files**: Must have `author`, `date`, and `stats` fields
+- **Stats files**: Must have cyclist entries with `name` field
+- **Structure**: All cyclist IDs must be numeric
+- **Syntax**: Valid YAML format
 
+### `import-from-db`
+Imports cyclist data from existing PCM SQLite databases.
+
+**Purpose**: Bootstrap new namespaces or migrate data from existing PCM databases.
+
+**Usage**:
 ```bash
-python src/cli.py validate-setup
+python -m src.pcm_cli import-from-db <namespace> <db_file>
 ```
 
-### `test-local`
-Run local CI/CD simulation
-- Validates workflow files
-- Creates sample change file
-- Simulates the full processing pipeline
+**Parameters**:
+- `namespace`: Target namespace (e.g., "2025", "2025dev")
+- `db_file`: Path to SQLite database file containing DYN_cyclist table
+
+**Example**:
+```bash
+python -m src.pcm_cli import-from-db 2025dev /path/to/pcm_database.sqlite
+```
+
+**Database Requirements**:
+- Must contain `DYN_cyclist` table
+- Required columns: `IDcyclist`, `gene_sz_lastname`, `gene_sz_firstname`, `value_f_current_ability`
+- Stat columns: `charac_i_plain`, `charac_i_mountain`, etc.
+
+### `help`
+Shows detailed help information.
+
+**Usage**:
+```bash
+python -m src.pcm_cli help
+```
+
+## 📁 Source Code Layout
+
+### Core Modules
+
+```
+src/
+├── pcm_cli.py              # Main CLI entry point and command router
+├── api.py                  # Core business logic and database operations
+├── __init__.py             # Package initialization
+├── examples/               # Example data and imports
+│   └── firstcycling_export/
+├── models/                 # Database schemas and models
+│   ├── api.py              # Model API definitions
+│   ├── schema.sql          # Main database schema
+│   └── tracking_db/        # Tracking database schema
+├── stats/                  # Stats configuration
+│   └── stats.yaml          # Global stats configuration
+└── utils/                  # Utility modules
+    └── commons.py          # Common utilities and constants
+```
+
+### Module Descriptions
+
+#### `pcm_cli.py` - CLI Entry Point
+- **Purpose**: Command-line interface and argument parsing
+- **Key Functions**:
+  - `main()`: CLI argument parsing and command routing
+  - `process_changes()`: Delegates to API for change processing
+  - `validate_yaml_files()`: Delegates to API for validation
+  - `import_from_db()`: Delegates to API for database import
+
+#### `api.py` - Core Business Logic
+- **Purpose**: All business logic and database operations
+- **Key Functions**:
+  - `process_all_namespaces()`: Main processing workflow
+  - `process_new_change_files()`: Process individual change files
+  - `update_stats_file_with_changes()`: Update stats.yaml files
+  - `validate_yaml_files()`: Comprehensive YAML validation
+  - `import_cyclists_from_db()`: Database import functionality
+  - `create_new_database()`: Initialize tracking databases
+
+#### `utils/commons.py` - Shared Utilities
+- **Purpose**: Common constants, path utilities, and shared functions
+- **Key Features**:
+  - Path management for namespaces
+  - Stat key definitions and ordering
+  - Namespace discovery utilities
+  - Configuration constants
+
+### Data Flow
+
+1. **CLI Command** → `pcm_cli.py` parses arguments
+2. **Business Logic** → `api.py` processes the request
+3. **File Operations** → Read/write YAML files and SQLite databases
+4. **Utilities** → `commons.py` provides paths and constants
+5. **Output** → Generated SQL files and updated stats files
+
+### Integration Points
+
+#### With Tests
+- Test files in `tests/` directory validate all CLI commands
+- Comprehensive test coverage for processing and validation
+- Integration tests for database operations
+
+#### With CI/CD
+- CLI commands are used in GitHub Actions workflows
+- `process-changes` is the main CI/CD entry point
+- Validation runs before processing in the pipeline
+
+#### With Data Structure
+- CLI operates on data files in `data/<namespace>/` directories
+- Respects namespace isolation and organization
+- Generates outputs in appropriate namespace directories
+
+## 🔧 Configuration
+
+### Environment Variables
+The CLI respects these environment variables:
+- Standard Python path variables for module imports
+- SQLite database connection settings (default timeouts, etc.)
+
+### Path Configuration
+All paths are managed through `commons.py`:
+- Namespace root directories
+- Change file locations
+- Stats file paths
+- Database file paths
+
+### Stat Configuration
+Cyclist stats are defined in `commons.STAT_KEYS`:
+```python
+STAT_KEYS = ['fla', 'mo', 'mm', 'dh', 'cob', 'tt', 'prl', 'spr', 'acc', 'end', 'res', 'rec', 'hil', 'att']
+```
+
+## 🐛 Error Handling
+
+### Common Issues
+1. **Import Errors**: Ensure you're running from the repository root
+2. **Database Errors**: Check SQLite file permissions and schema
+3. **YAML Errors**: Validate YAML syntax and required fields
+4. **Unicode Errors**: Fixed with UTF-8 encoding in recent updates
+
+### Debugging
+- Use `--help` flag for command-specific help
+- Check file paths and permissions
+- Validate YAML files before processing
+- Review generated SQL files for database issues
+
+## 📊 Output Formats
+
+### JSON Summary (process-changes)
+```json
+{
+  "processed_namespaces": 1,
+  "successful_namespaces": ["2025dev"],
+  "failed_namespaces": [],
+  "total_changes": 5,
+  "overall_success": true
+}
+```
+
+### Validation Report (validate-yaml)
+```
+✅ change.yaml (change-2025dev): Valid
+✅ stats.yaml (stats-2025dev): Valid
+🎉 All YAML files passed validation!
+```
+
+### Import Report (import-from-db)
+```
+✅ Successfully imported 150 cyclists to data/2025dev/stats.yaml
+   - Namespace: 2025dev
+   - Source: /path/to/database.sqlite
+   - Cyclists: 150
+```
 - Useful for testing before pushing to GitHub
 
 ```bash
