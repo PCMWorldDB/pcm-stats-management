@@ -9,19 +9,19 @@ Usage:
     python pcm_cli.py <command> [options]
 
 Commands:
-    process        - Process change files (main CI/CD operation)
+    process-changes- Process change files (main CI/CD operation)
     validate-yaml  - Validate YAML change files format
-    validate-setup - Validate repository structure and setup
     test-local     - Run local CI/CD simulation
     status         - Check project status and generate workflow variables
+    db-inspect     - Inspect database contents to see processed changes
     help           - Show this help message
 
 Examples:
-    python pcm_cli.py process
+    python pcm_cli.py process-changes
     python pcm_cli.py validate-yaml
-    python pcm_cli.py validate-setup
     python pcm_cli.py test-local
     python pcm_cli.py status
+    python pcm_cli.py db-inspect
 """
 
 import os
@@ -32,12 +32,14 @@ import tempfile
 import shutil
 import argparse
 from pathlib import Path
+
+# Add the parent directory (repo root) to Python path so we can import src modules
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
 from src.utils import commons
-from src.model import api as model_api
-# Add src directory to Python path
-sys.path.insert(0, os.path.dirname(__file__))
-
-
+from src import api as model_api
 
 
 class PCMStatsManager:
@@ -366,7 +368,7 @@ class PCMStatsManager:
         
         required_files = [
             (self.repo_root / "requirements.txt", "Main requirements file"),
-            (self.repo_root / model_dir / "api.py", "Models API"),
+            (self.repo_root / "src" / "api.py", "Models API"),
             (self.repo_root / model_dir / "tracking_schema.sql", "Database schema"),
             (self.repo_root / "src" / "utils" / "commons.py", "Common utilities"),
             (self.repo_root / stats_file_path, "Main stats file"),
@@ -397,59 +399,7 @@ class PCMStatsManager:
         
         return all_files_ok and all_dirs_ok
     
-    def validate_setup(self):
-        """Run comprehensive setup validation."""
-        print("=" * 60)
-        print("🔍 GitHub Actions CI/CD Setup Validator")
-        print("=" * 60)
-        
-        all_checks_passed = True
-        
-        # Run all validation checks
-        checks = [
-            ("Repository Structure", self.validate_repository_structure),
-            ("Python Imports", self.validate_python_imports),
-            ("Workflow Syntax", self.validate_workflow_syntax)
-        ]
-        
-        for check_name, check_function in checks:
-            print(f"\n🔍 Running {check_name} validation...")
-            if not check_function():
-                all_checks_passed = False
-        
-        # Generate report
-        report = {
-            "timestamp": str(os.popen("date").read().strip()) if os.name != 'nt' else 'timestamp',
-            "repository_root": str(self.repo_root),
-            "python_version": sys.version,
-            "platform": sys.platform,
-            "status": "ready" if all_checks_passed else "needs_attention"
-        }
-        
-        report_file = self.repo_root / "ci_cd_setup_report.json"
-        with open(report_file, 'w') as f:
-            json.dump(report, f, indent=2)
-        
-        print(f"✅ Setup report saved to: {report_file}")
-        
-        print("\n" + "=" * 60)
-        if all_checks_passed:
-            print("🎉 All validations passed! Your CI/CD setup is ready!")
-            print("\n📋 Next steps:")
-            print("   1. Commit and push your changes to GitHub")
-            print("   2. Check the Actions tab in your GitHub repository")
-            print("   3. Add some YAML change files to test the workflow")
-            print("   4. Monitor the workflow execution and logs")
-        else:
-            print("⚠️  Some validations failed. Please address the issues above.")
-            print("\n📋 Common solutions:")
-            print("   1. Install missing Python packages: pip install -r requirements.txt")
-            print("   2. Create missing directories (some were auto-created)")
-            print("   3. Fix any YAML syntax errors in workflow files")
-            print("   4. Ensure all required files are present")
-        
-        print("=" * 60)
-        return all_checks_passed
+
     
     def create_sample_change_file(self):
         """Create a sample change file for testing."""
@@ -662,7 +612,7 @@ stats:
         model_dir = commons.MODEL_DIR_PATH if commons else 'src/models'
         required_files = [
             'requirements.txt',
-            os.path.join(model_dir, 'api.py'),
+            'src/api.py',
             os.path.join(model_dir, 'tracking_schema.sql'),
             'src/utils/commons.py'
         ]
@@ -740,23 +690,6 @@ stats:
             # Output GitHub Actions variables
             self.output_github_actions_variables(checks)
             
-            # Generate summary
-            summary = {
-                'timestamp': str(os.popen("date").read().strip()) if os.name != 'nt' else 'timestamp',
-                'repository_root': str(Path.cwd()),
-                'checks': checks,
-                'overall_status': 'ready' if all([
-                    checks['dependencies']['all_dependencies_ok'],
-                    checks['changes']['changes_dir_exists']
-                ]) else 'needs_attention'
-            }
-            
-            # Save summary to file
-            with open('workflow_status.json', 'w') as f:
-                json.dump(summary, f, indent=2)
-            
-            print(f"✅ Status summary saved to workflow_status.json")
-            
             # Determine success
             if checks['dependencies']['all_dependencies_ok']:
                 print("✅ All checks passed successfully!")
@@ -771,6 +704,121 @@ stats:
             traceback.print_exc()
             return False
 
+    def inspect_database(self):
+        """Inspect the database contents to see what changes are already processed."""
+        print("🔍 Inspecting database contents...")
+        
+        try:
+            # Get all available namespaces
+            namespaces = commons.get_available_namespaces() if commons else ['2025']
+            
+            for namespace in namespaces:
+                print(f"\n📂 Namespace: {namespace}")
+                print("-" * 40)
+                
+                # Get database path
+                if commons:
+                    db_path = commons.get_path(namespace, 'tracking_db')
+                else:
+                    db_path = f"data/{namespace}/tracking_db.sqlite"
+                
+                if not Path(db_path).exists():
+                    print(f"❌ Database not found: {db_path}")
+                    continue
+                
+                print(f"📊 Database: {db_path}")
+                
+                # Connect to database
+                import sqlite3
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                
+                try:
+                    # Check tbl_changes
+                    print("\n🔄 Changes in database:")
+                    cursor.execute("SELECT id, name, description, author, date FROM tbl_changes ORDER BY id")
+                    changes = cursor.fetchall()
+                    
+                    if changes:
+                        for change in changes:
+                            print(f"  ID: {change[0]}, Name: '{change[1]}'")
+                            print(f"      Description: {change[2]}")
+                            print(f"      Author: {change[3]}, Date: {change[4]}")
+                            print()
+                    else:
+                        print("  No changes found in database")
+                    
+                    # Check cyclists
+                    print("👥 Cyclists in database:")
+                    cursor.execute("SELECT COUNT(*) FROM tbl_cyclists")
+                    cyclist_count = cursor.fetchone()[0]
+                    print(f"  Total cyclists: {cyclist_count}")
+                    
+                    if cyclist_count > 0:
+                        cursor.execute("SELECT id, pcm_id, name FROM tbl_cyclists ORDER BY id LIMIT 5")
+                        sample_cyclists = cursor.fetchall()
+                        print("  Sample cyclists:")
+                        for cyclist in sample_cyclists:
+                            print(f"    ID: {cyclist[0]}, PCM_ID: {cyclist[1]}, Name: {cyclist[2]}")
+                        if cyclist_count > 5:
+                            print(f"    ... and {cyclist_count - 5} more")
+                    
+                    # Check stat history
+                    print("\n📈 Stat history entries:")
+                    cursor.execute("SELECT COUNT(*) FROM tbl_change_stat_history")
+                    stat_count = cursor.fetchone()[0]
+                    print(f"  Total stat changes: {stat_count}")
+                    
+                    if stat_count > 0:
+                        cursor.execute("""
+                            SELECT csh.id, c.name, ch.name, csh.stat_name, csh.stat_value, csh.version
+                            FROM tbl_change_stat_history csh
+                            JOIN tbl_cyclists c ON csh.cyclist_id = c.id
+                            JOIN tbl_changes ch ON csh.change_id = ch.id
+                            ORDER BY csh.id LIMIT 5
+                        """)
+                        sample_stats = cursor.fetchall()
+                        print("  Sample stat changes:")
+                        for stat in sample_stats:
+                            print(f"    ID: {stat[0]}, Cyclist: {stat[1]}, Change: {stat[2]}")
+                            print(f"       Stat: {stat[3]} = {stat[4]} (v{stat[5]})")
+                        if stat_count > 5:
+                            print(f"    ... and {stat_count - 5} more")
+                    
+                except Exception as e:
+                    print(f"❌ Error querying database: {e}")
+                finally:
+                    conn.close()
+                
+                # Also check what change directories exist
+                print("\n📁 Change directories on disk:")
+                if commons:
+                    changes_dir = Path(commons.get_path(namespace, 'changes_dir'))
+                else:
+                    changes_dir = Path(f'data/{namespace}/changes')
+                
+                if changes_dir.exists():
+                    change_dirs = [d for d in changes_dir.iterdir() if d.is_dir()]
+                    if change_dirs:
+                        for change_dir in change_dirs:
+                            yaml_file = change_dir / 'change.yaml'
+                            sql_file = change_dir / 'inserts.sql'
+                            print(f"  📂 {change_dir.name}")
+                            print(f"     change.yaml: {'✅' if yaml_file.exists() else '❌'}")
+                            print(f"     inserts.sql: {'✅' if sql_file.exists() else '❌'}")
+                    else:
+                        print("  No change directories found")
+                else:
+                    print(f"  Changes directory doesn't exist: {changes_dir}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error during database inspection: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
 
 def main():
     """Main CLI entry point."""
@@ -781,15 +829,15 @@ def main():
 Examples:
     python pcm_cli.py process-changes
     python pcm_cli.py validate-yaml
-    python pcm_cli.py validate-setup
     python pcm_cli.py test-local
     python pcm_cli.py status
+    python pcm_cli.py db-inspect
         """
     )
     
     parser.add_argument(
         'command',
-        choices=['process-changes', 'validate-yaml', 'validate-setup', 'test-local', 'status', 'help'],
+        choices=['process-changes', 'validate-yaml', 'test-local', 'status', 'db-inspect', 'help'],
         help='Command to execute'
     )
     
@@ -816,14 +864,14 @@ Examples:
     elif args.command == 'validate-yaml':
         success = manager.validate_yaml_files()
         
-    elif args.command == 'validate-setup':
-        success = manager.validate_setup()
-        
     elif args.command == 'test-local':
         success = manager.test_local_ci()
         
     elif args.command == 'status':
         success = manager.check_status()
+        
+    elif args.command == 'db-inspect':
+        success = manager.inspect_database()
         
     elif args.command == 'help':
         parser.print_help()

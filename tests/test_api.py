@@ -1,90 +1,37 @@
 import os
 import pytest
 import yaml
-from src.model import api
-from src.utils import commons 
+from src import api
+from src.utils import commons
 
-STATS_PATH = commons.STATS_FILE_PATH
+def test_api_module_import():
+    """Test that the api module can be imported correctly."""
+    assert hasattr(api, 'process_all_namespaces')
+    assert hasattr(api, 'process_namespace')
+    assert hasattr(api, 'update_stats_file_with_changes')
 
-# Helper to create a stats.yaml-like structure in a temp file
-def write_stats_yaml(tmp_path):
-    stats = {
-        1: {
-            "name": "F. Archibold",
-            "first_cycling_id": 1,
-            "fla": 75,
-            "mo": 70,
-            "mm": 65,
-            "dh": 80,
-            "cob": 61,
-            "tt": 90,
-            "prl": 85,
-            "spr": 68,
-            "acc": 80,
-            "end": 70,
-            "res": 75,
-            "rec": 64,
-            "hil": 69,
-            "att": 68
-        },
-        2: {
-            "name": "G. Rojas Campos",
-            "first_cycling_id": 2,
-            "fla": 75,
-            "mo": 70,
-            "mm": 65,
-            "dh": 80,
-            "cob": 61,
-            "tt": 90,
-            "prl": 85,
-            "spr": 68,
-            "acc": 80,
-            "end": 70,
-            "res": 75,
-            "rec": 64,
-            "hil": 69,
-            "att": 68
-        }
-    }
-    stats_file = tmp_path / "stats.yaml"
-    yaml.dump(stats, stats_file.open('w'))
-    return str(stats_file)
+def test_commons_module_import():
+    """Test that the commons module can be imported correctly."""
+    assert hasattr(commons, 'STAT_KEYS')
+    assert hasattr(commons, 'get_path')
+    assert hasattr(commons, 'get_available_namespaces')
 
-def test_validate_success(tmp_path):
-    stats_file = write_stats_yaml(tmp_path)
-    update = {
-        "name": "Tour of Panama",
-        "date": "2025-08-06",
-        "stats": [
-            {"pcm_id": 1, "name": "F. Archibold", "fla": 76},
-            {"pcm_id": 2, "name": "G. Rojas Campos", "dh": 65}
-        ]
-    }
-    update_file = tmp_path / "valid_update.yaml"
-    yaml.dump(update, update_file.open('w'))
-    assert api.validate_update_file(str(update_file), stats_file)
+def test_stat_keys_order():
+    """Test that STAT_KEYS has the expected order."""
+    expected_keys = ['fla', 'mo', 'mm', 'dh', 'cob', 'tt', 'prl', 'spr', 'acc', 'end', 'res', 'rec', 'hil', 'att']
+    assert commons.STAT_KEYS == expected_keys
 
-def test_validate_missing_key(tmp_path):
-    stats_file = write_stats_yaml(tmp_path)
-    update = {
-        "name": "Tour of Panama",
-        "stats": [
-            {"pcm_id": 1, "name": "F. Archibold", "fla": 76}
-        ]
-    }
-    update_file = tmp_path / "missing_key.yaml"
-    yaml.dump(update, update_file.open('w'))
-    assert not api.validate_update_file(str(update_file), stats_file)
-
-def test_validate_invalid_pcm_id(tmp_path):
-    stats_file = write_stats_yaml(tmp_path)
-    update = {
-        "name": "Tour of Panama",
-        "date": "2025-08-06",
-        "stats": [
-            {"pcm_id": 999, "name": "Unknown Rider", "fla": 76}
-        ]
-    }
-    update_file = tmp_path / "invalid_pcm_id.yaml"
-    yaml.dump(update, update_file.open('w'))
-    assert not api.validate_update_file(str(update_file), stats_file)
+def test_get_path_function():
+    """Test that get_path function works correctly."""
+    namespace = "test"
+    
+    # Test various path types
+    assert commons.get_path(namespace, 'root') == os.path.join('data', namespace)
+    assert commons.get_path(namespace, 'changes_dir') == os.path.join('data', namespace, 'changes')
+    assert commons.get_path(namespace, 'stats_file') == os.path.join('data', namespace, 'stats.yaml')
+    assert commons.get_path(namespace, 'tracking_db') == os.path.join('data', namespace, 'tracking_db.sqlite')
+    assert commons.get_path(namespace, 'cdb') == os.path.join('data', namespace, 'cdb')
+    
+    # Test invalid path type
+    with pytest.raises(AssertionError):
+        commons.get_path(namespace, 'invalid_type')

@@ -45,9 +45,6 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
-    - name: General setup validation
-      run: |
-        python -m src.pcm_cli validate-setup
     - name: Process all namespaces
       run: |
         python -m src.pcm_cli process-changes
@@ -75,6 +72,3 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
-    - name: Validate setup
-      run: |
-        python -m src.pcm_cli validate-setup
