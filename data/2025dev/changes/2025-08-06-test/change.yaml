@@ -1,0 +1,12 @@
+author: "neal"
+date: "2025-08-06"
+description: "test update"
+stats:
+  - pcm_id: 1
+    name: Axel Froner
+    cob: 61
+    prl: 85
+  - pcm_id: 4
+    name: Valentin Madouas
+    dh: 64
+    spr: 40
