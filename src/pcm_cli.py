@@ -67,6 +67,18 @@ def validate_yaml_files():
         import traceback
         traceback.print_exc()
         return False
+
+
+def import_from_db(namespace, db_file):
+    """Import cyclist data from SQLite database to create stats.yaml file."""
+    try:
+        # Delegate to API for import logic
+        return model_api.import_cyclists_from_db(namespace, db_file)
+    except Exception as e:
+        print(f"❌ Error during database import: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
   
 def main():
     """Main CLI entry point."""
@@ -77,13 +89,26 @@ def main():
 Examples:
     python pcm_cli.py process-changes
     python pcm_cli.py validate-yaml
+    python pcm_cli.py import-from-db 2025 /path/to/database.sqlite
         """
     )
     
     parser.add_argument(
         'command',
-        choices=['process-changes', 'validate-yaml', 'help'],
+        choices=['process-changes', 'validate-yaml', 'import-from-db', 'help'],
         help='Command to execute'
+    )
+    
+    parser.add_argument(
+        'namespace',
+        nargs='?',
+        help='Namespace for import-from-db command'
+    )
+    
+    parser.add_argument(
+        'db_file',
+        nargs='?',
+        help='SQLite database file path for import-from-db command'
     )
     
     # Handle no arguments or help
@@ -105,6 +130,18 @@ Examples:
         
     elif args.command == 'validate-yaml':
         success = validate_yaml_files()
+        
+    elif args.command == 'import-from-db':
+        if not args.namespace or not args.db_file:
+            print("❌ Error: import-from-db command requires namespace and db_file arguments")
+            print("Usage: python pcm_cli.py import-from-db <namespace> <db_file>")
+            return 1
+        
+        print("=" * 60)
+        print(f"📥 Importing cyclist data from database to namespace: {args.namespace}")
+        print("=" * 60)
+        
+        success = import_from_db(args.namespace, args.db_file)
         
     elif args.command == 'help':
         parser.print_help()

@@ -758,3 +758,162 @@ def validate_yaml_files():
     else:
         print("\n❌ Some YAML files failed validation!")
         return False
+
+
+# =============================================================================
+# Database Import Functions
+# =============================================================================
+
+def import_cyclists_from_db(namespace, db_file):
+    """
+    Import cyclist data from SQLite database DYN_cyclist table to create stats.yaml file.
+    
+    Args:
+        namespace (str): The namespace to create stats file for
+        db_file (str): Path to the SQLite database file
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    import sqlite3
+    import os
+    
+    # Column mapping from database to stats.yaml
+    STAT_COLUMN_MAPPING = {
+        'fla': 'charac_i_plain',
+        'mo': 'charac_i_mountain', 
+        'mm': 'charac_i_medium_mountain',
+        'dh': 'charac_i_downhilling',
+        'cob': 'charac_i_cobble',
+        'tt': 'charac_i_timetrial',
+        'prl': 'charac_i_prologue',
+        'spr': 'charac_i_sprint',
+        'acc': 'charac_i_acceleration',
+        'end': 'charac_i_endurance',
+        'res': 'charac_i_resistance',
+        'rec': 'charac_i_recuperation',
+        'hil': 'charac_i_hill',
+        'att': 'charac_i_baroudeur'
+    }
+    
+    try:
+        # Check if database file exists
+        if not os.path.exists(db_file):
+            print(f"❌ Database file not found: {db_file}")
+            return False
+        
+        print(f"📂 Reading database file: {db_file}")
+        
+        # Connect to database
+        conn = sqlite3.connect(db_file)
+        cursor = conn.cursor()
+        
+        # Check if DYN_cyclist table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='DYN_cyclist'")
+        if not cursor.fetchone():
+            print("❌ Table 'DYN_cyclist' not found in database")
+            conn.close()
+            return False
+        
+        # Get table schema to verify columns exist
+        cursor.execute("PRAGMA table_info(DYN_cyclist)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        # Check required columns exist
+        required_columns = [
+            'IDcyclist', 'gene_sz_lastname', 'gene_sz_firstname', 
+            'value_f_current_ability'
+        ] + list(STAT_COLUMN_MAPPING.values())
+        
+        missing_columns = [col for col in required_columns if col not in columns]
+        if missing_columns:
+            print(f"❌ Missing required columns in DYN_cyclist table: {missing_columns}")
+            conn.close()
+            return False
+        
+        # Build SELECT query
+        select_columns = [
+            'IDcyclist',
+            'gene_sz_lastname', 
+            'gene_sz_firstname',
+            'value_f_current_ability'
+        ] + list(STAT_COLUMN_MAPPING.values())
+        
+        query = f"SELECT {', '.join(select_columns)} FROM DYN_cyclist"
+        print(f"🔍 Executing query: {query}")
+        
+        cursor.execute(query)
+        rows = cursor.fetchall()
+        
+        if not rows:
+            print("⚠️  No cyclist data found in DYN_cyclist table")
+            conn.close()
+            return False
+        
+        print(f"📊 Found {len(rows)} cyclists in database")
+        
+        # Build stats data structure
+        stats_data = {}
+        
+        for row in rows:
+            cyclist_id = str(row[0])  # IDcyclist as string for YAML keys
+            lastname = row[1] or ""
+            firstname = row[2] or ""
+            first_cycling_id = row[3]
+            
+            # Combine first and last name
+            full_name = f"{firstname} {lastname}".strip()
+            if not full_name:
+                full_name = f"Cyclist {cyclist_id}"
+            
+            # Create cyclist entry with ordered structure
+            cyclist_data = {
+                'name': full_name
+            }
+            
+            # Add first_cycling_id if present
+            if first_cycling_id is not None and first_cycling_id != '':
+                cyclist_data['first_cycling_id'] = int(first_cycling_id)
+            
+            # Add stats in commons.STAT_KEYS order
+            stat_values = row[4:]  # The stat columns start at index 4
+            for i, stat_key in enumerate(commons.STAT_KEYS):
+                if i < len(stat_values) and stat_values[i] is not None:
+                    cyclist_data[stat_key] = stat_values[i]
+            
+            stats_data[cyclist_id] = cyclist_data
+        
+        conn.close()
+        
+        # Create ordered output (sort by cyclist ID numerically)
+        ordered_stats_data = {}
+        for cyclist_id in sorted(stats_data.keys(), key=lambda x: int(x)):
+            ordered_stats_data[cyclist_id] = stats_data[cyclist_id]
+        
+        # Ensure namespace directory exists
+        namespace_dir = commons.get_path(namespace, 'root')
+        os.makedirs(namespace_dir, exist_ok=True)
+        
+        # Write stats.yaml file
+        stats_file_path = commons.get_path(namespace, 'stats_file')
+        
+        print(f"💾 Writing stats file: {stats_file_path}")
+        
+        with open(stats_file_path, 'w', encoding='utf-8') as f:
+            yaml.dump(ordered_stats_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        
+        print(f"✅ Successfully imported {len(ordered_stats_data)} cyclists to {stats_file_path}")
+        print(f"   - Namespace: {namespace}")
+        print(f"   - Source: {db_file}")
+        print(f"   - Cyclists: {len(ordered_stats_data)}")
+        
+        return True
+        
+    except sqlite3.Error as e:
+        print(f"❌ Database error: {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Error importing from database: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
