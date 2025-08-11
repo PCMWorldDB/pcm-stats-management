@@ -1,0 +1,12 @@
+author: "neal"
+date: "2025-08-11"
+description: "test-4 change"
+stats:
+  - pcm_id: 1
+    name: Axel Froner
+    cob: 20
+    prl: 20
+  - pcm_id: 4
+    name: Valentin Madouas
+    dh: 20
+    spr: 20
