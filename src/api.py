@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import yaml
+from pathlib import Path
 from src.utils import commons
 
 def init_namespace(namespace):
@@ -217,7 +218,7 @@ def process_new_change_files(namespace):
                 "new_changes": 0,
                 "skipped_files": 0,
                 "output_file": None,
-                "stats_updates": {}
+                "stat_changes": {}
             }
         
         change_directories = [d for d in os.listdir(changes_dir) 
@@ -229,7 +230,7 @@ def process_new_change_files(namespace):
         processed_files = 0
         total_new_changes = 0
         total_sql_files_generated = 0
-        all_stats_updates = {}
+        all_stat_changes = {}
         
         for change_dir_name in new_change_dirs:
             change_dir_path = os.path.join(changes_dir, change_dir_name)
@@ -254,7 +255,7 @@ def process_new_change_files(namespace):
                 # Update the stats.yaml file with the changes
                 print(f"🔄 Updating stats file for {change_dir_name}...")
                 stats_update_summary = update_stats_file_with_changes(namespace, change_yaml_path)
-                all_stats_updates[change_dir_name] = stats_update_summary
+                all_stat_changes[change_dir_name] = stats_update_summary
                 
                 processed_files += 1
                 total_new_changes += changes_count
@@ -266,7 +267,7 @@ def process_new_change_files(namespace):
             "new_changes": total_new_changes,
             "skipped_files": len(change_directories) - processed_files,
             "sql_files_generated": total_sql_files_generated,
-            "stats_updates": all_stats_updates
+            "stat_changes": all_stat_changes
         }
         
         print(f"SQL generation complete: {summary}")
@@ -502,3 +503,258 @@ def process_all_namespaces():
     print("=" * 60)
     
     return overall_summary
+
+
+# =============================================================================
+# YAML Validation Functions
+# =============================================================================
+
+def validate_yaml_syntax(file_path):
+    """Validate that a YAML file has correct syntax."""
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            yaml.safe_load(f)
+        return True, None
+    except yaml.YAMLError as e:
+        return False, f"YAML syntax error: {e}"
+    except Exception as e:
+        return False, f"File error: {e}"
+
+def validate_required_fields_change_file(data):
+    """Validate that required fields are present in a change file YAML data."""
+    # Check for 'author'
+    # 'date' and 'stats' are always required
+    required_fields = ['date', 'stats']
+    missing_fields = [field for field in required_fields if field not in data]
+    
+    # Check that 'author' is present
+    if 'author' not in data:
+        missing_fields.append('author')
+    
+    if missing_fields:
+        return False, f"Missing required fields: {', '.join(missing_fields)}"
+    
+    # Additional validation for stats
+    if not isinstance(data['stats'], list):
+        return False, "stats must be a list"
+    
+    if len(data['stats']) == 0:
+        return False, "stats cannot be empty"
+    
+    # Validate each stat update entry
+    for i, stat_update in enumerate(data['stats']):
+        if not isinstance(stat_update, dict):
+            return False, f"stats[{i}] must be a dictionary"
+        
+        required_stat_fields = ['pcm_id', 'name']
+        missing_stat_fields = [field for field in required_stat_fields if field not in stat_update]
+        
+        if missing_stat_fields:
+            return False, f"stats[{i}] missing required fields: {', '.join(missing_stat_fields)}"
+    
+    return True, None
+
+def validate_required_fields_stats_file(data):
+    """Validate that required fields are present in a stats file YAML data."""
+    if not isinstance(data, dict):
+        return False, "Stats file must be a dictionary with cyclist IDs as keys"
+    
+    if len(data) == 0:
+        return False, "Stats file cannot be empty"
+    
+    # Validate each cyclist entry
+    for cyclist_id, cyclist_data in data.items():
+        if not isinstance(cyclist_data, dict):
+            return False, f"Cyclist {cyclist_id} data must be a dictionary"
+        
+        required_fields = ['name']
+        missing_fields = [field for field in required_fields if field not in cyclist_data]
+        
+        if missing_fields:
+            return False, f"Cyclist {cyclist_id} missing required fields: {', '.join(missing_fields)}"
+        
+        # Validate that cyclist ID is numeric (can be string or int)
+        try:
+            int(cyclist_id)
+        except ValueError:
+            return False, f"Cyclist ID '{cyclist_id}' must be numeric"
+    
+    return True, None
+
+def detect_yaml_file_type(file_path):
+    """Detect whether this is a change file or stats file based on structure."""
+    file_path = Path(file_path)
+    if file_path.is_file() and file_path.name.lower() == 'change.yaml':
+        return 'change_file'
+    elif file_path.is_file() and file_path.name.lower() == 'stats.yaml':
+        return 'stats_file'
+    return 'unknown'
+
+def validate_single_yaml_file(file_path):
+    """Validate a single YAML file (either change file or stats file)."""
+    # First validate YAML syntax
+    is_valid, error = validate_yaml_syntax(file_path)
+    if not is_valid:
+        return False, error
+    
+    # Load and validate structure
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        # Detect file type
+        file_type = detect_yaml_file_type(file_path)
+        
+        if file_type == 'change_file':
+            is_valid, error = validate_required_fields_change_file(data)
+            if not is_valid:
+                return False, f"Change file validation error: {error}"
+        elif file_type == 'stats_file':
+            is_valid, error = validate_required_fields_stats_file(data)
+            if not is_valid:
+                return False, f"Stats file validation error: {error}"
+        else:
+            return False, "Unknown file type - does not match change file or stats file structure"
+        
+        return True, None
+        
+    except Exception as e:
+        return False, f"Validation error: {e}"
+
+def validate_change_files():
+    """Validate all change.yaml files across all namespaces."""
+    print(f"📋 Validating change files for all namespaces...")
+    
+    try:
+        all_change_files = []
+        validation_errors = []
+        
+        # Get all available namespaces
+        namespaces = commons.get_available_namespaces()
+        
+        for namespace in namespaces:
+            print(f"🔍 Checking change files in namespace: {namespace}")
+            
+            # Check change files using namespace
+            changes_dir = Path(commons.get_path(namespace, 'changes_dir'))
+            
+            if changes_dir.exists():
+                # Look for change directories containing change.yaml files
+                change_directories = [d for d in changes_dir.iterdir() if d.is_dir()]
+                change_files = []
+                
+                for change_dir in change_directories:
+                    change_yaml = change_dir / 'change.yaml'
+                    if change_yaml.exists():
+                        change_files.append(change_yaml)
+                
+                all_change_files.extend([(f, f'change-{namespace}') for f in change_files])
+                print(f"🔍 Found {len(change_files)} change files in {changes_dir}")
+            else:
+                print(f"ℹ️  Changes directory not found: {changes_dir}")
+        
+        if not all_change_files:
+            print("ℹ️  No change files found to validate")
+            return True
+        
+        print(f"🔍 Total {len(all_change_files)} change files to validate")
+        
+        # Validate each change file
+        for yaml_file, file_category in all_change_files:
+            is_valid, error = validate_single_yaml_file(yaml_file)
+            
+            if is_valid:
+                print(f"✅ {yaml_file.parent.name}/change.yaml ({file_category}): Valid")
+            else:
+                print(f"❌ {yaml_file.parent.name}/change.yaml ({file_category}): {error}")
+                validation_errors.append((f"{yaml_file.parent.name}/change.yaml", error))
+        
+        # Summary
+        if validation_errors:
+            print(f"\n❌ Change file validation failed for {len(validation_errors)} files:")
+            for filename, error in validation_errors:
+                print(f"   - {filename}: {error}")
+            return False
+        else:
+            print(f"\n✅ All {len(all_change_files)} change files passed validation!")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error during change file validation: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def validate_stats_files():
+    """Validate all stats.yaml files across all namespaces."""
+    print(f"📋 Validating stats files for all namespaces...")
+    
+    try:
+        all_stats_files = []
+        validation_errors = []
+        
+        # Get all available namespaces
+        namespaces = commons.get_available_namespaces()
+        
+        for namespace in namespaces:
+            print(f"🔍 Checking stats file in namespace: {namespace}")
+            
+            # Check stats file using namespace
+            stats_file = Path(commons.get_path(namespace, 'stats_file'))
+                
+            if stats_file.exists():
+                all_stats_files.append((stats_file, f'stats-{namespace}'))
+                print(f"🔍 Found stats file: {stats_file}")
+            else:
+                print(f"ℹ️  Stats file not found: {stats_file}")
+        
+        if not all_stats_files:
+            print("ℹ️  No stats files found to validate")
+            return True
+        
+        print(f"🔍 Total {len(all_stats_files)} stats files to validate")
+        
+        # Validate each stats file
+        for yaml_file, file_category in all_stats_files:
+            is_valid, error = validate_single_yaml_file(yaml_file)
+            
+            if is_valid:
+                print(f"✅ {yaml_file.name} ({file_category}): Valid")
+            else:
+                print(f"❌ {yaml_file.name} ({file_category}): {error}")
+                validation_errors.append((yaml_file.name, error))
+        
+        # Summary
+        if validation_errors:
+            print(f"\n❌ Stats file validation failed for {len(validation_errors)} files:")
+            for filename, error in validation_errors:
+                print(f"   - {filename}: {error}")
+            return False
+        else:
+            print(f"\n✅ All {len(all_stats_files)} stats files passed validation!")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error during stats file validation: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+def validate_yaml_files():
+    """Validate all YAML files (both change files and stats files)."""
+    print("🔍 Starting comprehensive YAML validation...")
+    
+    # Validate change files
+    change_files_valid = validate_change_files()
+    print()  # Add spacing
+    
+    # Validate stats files
+    stats_files_valid = validate_stats_files()
+    
+    # Overall summary
+    if change_files_valid and stats_files_valid:
+        print("\n🎉 All YAML files passed validation!")
+        return True
+    else:
+        print("\n❌ Some YAML files failed validation!")
+        return False

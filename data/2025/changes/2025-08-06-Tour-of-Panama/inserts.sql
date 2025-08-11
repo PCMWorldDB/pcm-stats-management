@@ -67,7 +67,7 @@ VALUES (
     (SELECT id FROM tbl_cyclists WHERE pcm_id = '1'),
     (SELECT id FROM tbl_changes WHERE name = '2025-08-06-Tour-of-Panama'),
     'rec',
-    64,
+    40,
     COALESCE(
         (SELECT MAX(version) + 1 
          FROM tbl_change_stat_history csh 
@@ -118,6 +118,20 @@ VALUES (
          FROM tbl_change_stat_history csh 
          JOIN tbl_cyclists c ON csh.cyclist_id = c.id 
          WHERE c.pcm_id = '2' AND csh.stat_name = 'dh'), 
+        1
+    )
+);
+INSERT INTO tbl_change_stat_history (cyclist_id, change_id, stat_name, stat_value, version)
+VALUES (
+    (SELECT id FROM tbl_cyclists WHERE pcm_id = '2'),
+    (SELECT id FROM tbl_changes WHERE name = '2025-08-06-Tour-of-Panama'),
+    'spr',
+    40,
+    COALESCE(
+        (SELECT MAX(version) + 1 
+         FROM tbl_change_stat_history csh 
+         JOIN tbl_cyclists c ON csh.cyclist_id = c.id 
+         WHERE c.pcm_id = '2' AND csh.stat_name = 'spr'), 
         1
     )
 );
