@@ -107,17 +107,19 @@ The `stats.yaml` file contains the current state of all cyclist statistics for a
 ```yaml
 "12345":                        # PCM ID as string key
   name: "John Cyclist"          # Required: Cyclist name
-  first_cycling_id: "67890"     # Optional: FirstCycling.com ID
-  fla: 78                       # Stats in defined order
-  mo: 65
-  mm: 72
-  # ... other stats
+  first_cycling_id: 67890       # Optional: FirstCycling.com ID (numeric)
+  stats: {fla: 78, mo: 65, mm: 72, dh: 70, cob: 75, tt: 68, prl: 71, spr: 69, acc: 73, end: 74, res: 67, rec: 66, hil: 72, att: 70}
 "12346":                        # Next cyclist
   name: "Jane Racer"
-  fla: 82
-  spr: 89
-  # ... stats
+  stats: {fla: 82, spr: 89, acc: 85, end: 78}  # Only stats that have values
 ```
+
+### New Schema Features
+
+- **Nested Stats**: All cycling statistics are now grouped under a `stats` key
+- **Flow Style**: Stats use compact flow-style YAML formatting `{key: value, ...}`
+- **Selective Stats**: Only stats with actual values are included (no null/empty stats)
+- **Consistent Structure**: Each cyclist has `name`, optional `first_cycling_id`, and `stats`
 
 ### Stats File Features
 

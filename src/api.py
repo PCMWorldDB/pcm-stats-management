@@ -4,6 +4,29 @@ import yaml
 from pathlib import Path
 from src.utils import commons
 
+def _write_stats_yaml_with_flow_style(data, file_path):
+    """
+    Write stats YAML file with flow style formatting for stats dictionaries.
+    
+    Args:
+        data (dict): The stats data to write
+        file_path (str): Path to write the YAML file
+    """
+    # Custom YAML dumper for stats formatting
+    class StatsYAMLDumper(yaml.SafeDumper):
+        def represent_dict(self, data):
+            # Check if this is a stats dictionary (nested inside a cyclist)
+            if all(key in ['fla', 'mo', 'mm', 'dh', 'cob', 'tt', 'prl', 'spr', 'acc', 'end', 'res', 'rec', 'hil', 'att'] for key in data.keys()):
+                return self.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=True)
+            else:
+                return self.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=False)
+    
+    # Override the dict representer
+    StatsYAMLDumper.add_representer(dict, StatsYAMLDumper.represent_dict)
+    
+    with open(file_path, 'w', encoding='utf-8') as f:
+        yaml.dump(data, f, Dumper=StatsYAMLDumper, default_flow_style=False, sort_keys=False, allow_unicode=True)
+
 def init_namespace(namespace):
     """
     Initialize the directory structure for a given namespace.
@@ -134,21 +157,30 @@ def update_stats_file_with_changes(namespace, change_yaml_path):
                 # Preserve existing first_cycling_id if not in change
                 ordered_cyclist_data['first_cycling_id'] = stats_data[pcm_id]['first_cycling_id']
             
-            # 3. Stats in STAT_KEYS order
+            # 3. Stats dictionary (nested structure)
+            stats_dict = {}
+            
+            # Get existing stats from nested structure
+            existing_stats = stats_data[pcm_id].get('stats', {}) if pcm_id in stats_data else {}
+            
             for stat_name in commons.STAT_KEYS:
                 # Check if this stat is being updated in the change
                 new_stat_value = stat_update.get(stat_name)
-                old_stat_value = stats_data[pcm_id].get(stat_name)
+                old_stat_value = existing_stats.get(stat_name)
                 
                 if new_stat_value is not None and new_stat_value != '':
                     # Use the new value from the change
-                    ordered_cyclist_data[stat_name] = new_stat_value
+                    stats_dict[stat_name] = new_stat_value
                     if old_stat_value != new_stat_value:
                         stats_updated += 1
                         print(f"  🔄 Updated {cyclist_name} {stat_name}: {old_stat_value} → {new_stat_value}")
                 elif old_stat_value is not None:
                     # Preserve existing value if not being changed
-                    ordered_cyclist_data[stat_name] = old_stat_value
+                    stats_dict[stat_name] = old_stat_value
+            
+            # Add stats dictionary to cyclist data
+            if stats_dict:
+                ordered_cyclist_data['stats'] = stats_dict
             
             # Update the cyclist data with ordered structure
             stats_data[pcm_id] = ordered_cyclist_data
@@ -159,9 +191,8 @@ def update_stats_file_with_changes(namespace, change_yaml_path):
         for pcm_id in sorted(stats_data.keys(), key=lambda x: int(x)):
             ordered_stats_data[pcm_id] = stats_data[pcm_id]
         
-        # Write updated stats back to file with proper formatting and no sorting
-        with open(stats_file_path, 'w') as f:
-            yaml.dump(ordered_stats_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        # Write updated stats back to file with custom formatting
+        _write_stats_yaml_with_flow_style(ordered_stats_data, stats_file_path)
         
         summary = {
             "stats_file_updated": True,
@@ -555,7 +586,7 @@ def validate_required_fields_change_file(data):
     return True, None
 
 def validate_required_fields_stats_file(data):
-    """Validate that required fields are present in a stats file YAML data."""
+    """Validate that required fields are present in a stats file YAML data with new nested structure."""
     if not isinstance(data, dict):
         return False, "Stats file must be a dictionary with cyclist IDs as keys"
     
@@ -567,6 +598,7 @@ def validate_required_fields_stats_file(data):
         if not isinstance(cyclist_data, dict):
             return False, f"Cyclist {cyclist_id} data must be a dictionary"
         
+        # Required fields for new schema
         required_fields = ['name']
         missing_fields = [field for field in required_fields if field not in cyclist_data]
         
@@ -578,6 +610,24 @@ def validate_required_fields_stats_file(data):
             int(cyclist_id)
         except ValueError:
             return False, f"Cyclist ID '{cyclist_id}' must be numeric"
+        
+        # Validate stats structure if present
+        if 'stats' in cyclist_data:
+            if not isinstance(cyclist_data['stats'], dict):
+                return False, f"Cyclist {cyclist_id} 'stats' must be a dictionary"
+            
+            # Validate stat keys and values
+            for stat_key, stat_value in cyclist_data['stats'].items():
+                if stat_key not in commons.STAT_KEYS:
+                    return False, f"Cyclist {cyclist_id} has invalid stat key: {stat_key}"
+                
+                if not isinstance(stat_value, (int, float)):
+                    return False, f"Cyclist {cyclist_id} stat '{stat_key}' must be numeric, got: {type(stat_value).__name__}"
+        
+        # Validate first_cycling_id if present
+        if 'first_cycling_id' in cyclist_data:
+            if not isinstance(cyclist_data['first_cycling_id'], (int, str)):
+                return False, f"Cyclist {cyclist_id} 'first_cycling_id' must be numeric"
     
     return True, None
 
@@ -866,7 +916,7 @@ def import_cyclists_from_db(namespace, db_file):
             if not full_name:
                 full_name = f"Cyclist {cyclist_id}"
             
-            # Create cyclist entry with ordered structure
+            # Create cyclist entry with new nested structure
             cyclist_data = {
                 'name': full_name
             }
@@ -875,11 +925,16 @@ def import_cyclists_from_db(namespace, db_file):
             if first_cycling_id is not None and first_cycling_id != '':
                 cyclist_data['first_cycling_id'] = int(first_cycling_id)
             
-            # Add stats in commons.STAT_KEYS order
+            # Create stats dictionary
+            stats_dict = {}
             stat_values = row[4:]  # The stat columns start at index 4
             for i, stat_key in enumerate(commons.STAT_KEYS):
                 if i < len(stat_values) and stat_values[i] is not None:
-                    cyclist_data[stat_key] = stat_values[i]
+                    stats_dict[stat_key] = stat_values[i]
+            
+            # Add stats as nested dictionary
+            if stats_dict:
+                cyclist_data['stats'] = stats_dict
             
             stats_data[cyclist_id] = cyclist_data
         
@@ -894,13 +949,12 @@ def import_cyclists_from_db(namespace, db_file):
         namespace_dir = commons.get_path(namespace, 'root')
         os.makedirs(namespace_dir, exist_ok=True)
         
-        # Write stats.yaml file
+        # Write stats.yaml file with custom formatting
         stats_file_path = commons.get_path(namespace, 'stats_file')
         
         print(f"💾 Writing stats file: {stats_file_path}")
         
-        with open(stats_file_path, 'w', encoding='utf-8') as f:
-            yaml.dump(ordered_stats_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        _write_stats_yaml_with_flow_style(ordered_stats_data, stats_file_path)
         
         print(f"✅ Successfully imported {len(ordered_stats_data)} cyclists to {stats_file_path}")
         print(f"   - Namespace: {namespace}")
