@@ -11,7 +11,7 @@ VALUES (
     (SELECT id FROM tbl_cyclists WHERE pcm_id = '1'),
     (SELECT id FROM tbl_changes WHERE name = '2025-08-06-test'),
     'cob',
-    61,
+    78,
     COALESCE(
         (SELECT MAX(version) + 1 
          FROM tbl_change_stat_history csh 
@@ -25,7 +25,7 @@ VALUES (
     (SELECT id FROM tbl_cyclists WHERE pcm_id = '1'),
     (SELECT id FROM tbl_changes WHERE name = '2025-08-06-test'),
     'prl',
-    85,
+    78,
     COALESCE(
         (SELECT MAX(version) + 1 
          FROM tbl_change_stat_history csh 
@@ -42,7 +42,7 @@ VALUES (
     (SELECT id FROM tbl_cyclists WHERE pcm_id = '4'),
     (SELECT id FROM tbl_changes WHERE name = '2025-08-06-test'),
     'dh',
-    64,
+    78,
     COALESCE(
         (SELECT MAX(version) + 1 
          FROM tbl_change_stat_history csh 
@@ -56,7 +56,7 @@ VALUES (
     (SELECT id FROM tbl_cyclists WHERE pcm_id = '4'),
     (SELECT id FROM tbl_changes WHERE name = '2025-08-06-test'),
     'spr',
-    40,
+    78,
     COALESCE(
         (SELECT MAX(version) + 1 
          FROM tbl_change_stat_history csh 

@@ -103,12 +103,12 @@ def update_stats_file_with_changes(namespace, change_yaml_path):
     
     try:
         # Load the change data
-        with open(change_yaml_path, 'r') as f:
+        with open(change_yaml_path, 'r', encoding='utf-8') as f:
             change_data = yaml.safe_load(f)
         
         # Load existing stats file
         if os.path.exists(stats_file_path):
-            with open(stats_file_path, 'r') as f:
+            with open(stats_file_path, 'r', encoding='utf-8') as f:
                 stats_data = yaml.safe_load(f) or {}
         else:
             stats_data = {}
@@ -323,7 +323,7 @@ def _generate_sql_for_change_file(cursor, change_dir_name, change_yaml_path):
         tuple: (list of SQL statements, number of changes), (-1) on error
     """
     try:
-        with open(change_yaml_path, 'r') as f:
+        with open(change_yaml_path, 'r', encoding='utf-8') as f:
             change_data = yaml.safe_load(f)
         
         # Validate required fields (name is not required since we use directory name)
