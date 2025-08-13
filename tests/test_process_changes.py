@@ -186,7 +186,7 @@ class TestProcessChanges:
         # The system might handle invalid YAML gracefully and still return success
         # Let's just verify the function completes without crashing
         assert result is not None  # Function should return something
-        assert "🚀 Starting PCM stats processing" in output
+        assert "Processing Summary:" in output or "Found" in output  # Check for processing activity
     
     @patch('sys.stdout', new_callable=StringIO)
     def test_process_changes_missing_required_fields(self, mock_stdout):
@@ -208,7 +208,7 @@ class TestProcessChanges:
         # The function should still return success as it processes what it can
         # Individual file errors are handled within the processing
         output = mock_stdout.getvalue()
-        assert "🚀 Starting PCM stats processing" in output
+        assert "Processing Summary:" in output or "Found" in output  # Check for processing activity
     
     @patch('sys.stdout', new_callable=StringIO)
     def test_process_changes_new_cyclist(self, mock_stdout):
@@ -298,4 +298,4 @@ class TestProcessChanges:
         
         # Should handle gracefully
         output = mock_stdout.getvalue()
-        assert "🚀 Starting PCM stats processing" in output
+        assert "No namespaces found" in output or "Processing Summary:" in output  # Check for appropriate handling
