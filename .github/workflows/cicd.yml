@@ -3,6 +3,8 @@ name: cicd
 on:
   pull_request:
     branches: [ "main", "uat", "change/*" ]  # Allow PRs to protected branches
+  push:
+    branches: [ "uat", "main" ]  # Run on pushes to protected branches (merges)
 
 jobs:
   # Test job that runs on all branches first
@@ -89,7 +91,8 @@ jobs:
   uat_branch:
     runs-on: ubuntu-latest
     needs: validate  # Only run after validate passes
-    if: ${{ github.ref == 'refs/heads/uat' || github.base_ref == 'uat' }}
+    # Only run when PRs are merged into UAT branch (push events)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/uat' }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -133,7 +136,8 @@ jobs:
   main_branch:
     runs-on: ubuntu-latest
     needs: validate  # Only run after validate passes
-    if: ${{ github.ref == 'refs/heads/main' }}
+    # Only run when PRs are merged into main branch (push events)
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     steps:
     - uses: actions/checkout@v4
       with:
