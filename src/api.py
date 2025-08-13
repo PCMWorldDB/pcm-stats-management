@@ -4,6 +4,23 @@ import yaml
 from pathlib import Path
 from src.utils import commons
 
+def _find_change_file(change_dir_path):
+    """
+    Find change file in a directory, supporting both .yaml and .yml extensions.
+    
+    Args:
+        change_dir_path (str): Path to the change directory
+        
+    Returns:
+        str: Path to the change file if found, None otherwise
+    """
+    # Try change.yaml first, then change.yml
+    for filename in ['change.yaml', 'change.yml']:
+        change_file_path = os.path.join(change_dir_path, filename)
+        if os.path.exists(change_file_path):
+            return change_file_path
+    return None
+
 def _write_stats_yaml_with_flow_style(data, file_path):
     """
     Write stats YAML file with flow style formatting for stats dictionaries.
@@ -70,20 +87,20 @@ def create_new_database(namespace, type='tracking'):
     """
     # Get the database path
     db_path = commons.get_path(namespace, 'tracking_db')
-    
-    # Read schema from tracking_schema.sql
-    schema_path = os.path.join(commons.MODEL_DIR_PATH, f'{type}_schema.sql')
-    with open(schema_path, 'r') as schema_file:
-        schema_sql = schema_file.read()
-    
-    # Create database and execute schema
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.executescript(schema_sql)
-    conn.commit()
-    conn.close()
-    
-    print(f"Tracking database created successfully at: {db_path}")
+    if not os.path.exists(db_path):
+        # Read schema from tracking_schema.sql
+        schema_path = os.path.join(commons.MODEL_DIR_PATH, f'{type}_schema.sql')
+        with open(schema_path, 'r') as schema_file:
+            schema_sql = schema_file.read()
+        
+        # Create database and execute schema
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.executescript(schema_sql)
+        conn.commit()
+        conn.close()
+        
+        print(f"Tracking database created successfully at: {db_path}")
     return db_path
 
 def get_database_connection(namespace):
@@ -274,12 +291,12 @@ def process_new_change_files(namespace):
         
         for change_dir_name in new_change_dirs:
             change_dir_path = os.path.join(changes_dir, change_dir_name)
-            change_yaml_path = os.path.join(change_dir_path, 'change.yaml')
+            change_yaml_path = _find_change_file(change_dir_path)
             inserts_sql_path = os.path.join(change_dir_path, 'inserts.sql')
             
-            # Check if change.yaml exists in this directory
-            if not os.path.exists(change_yaml_path):
-                print(f"⚠️  Skipping {change_dir_name}: No change.yaml file found")
+            # Check if change file exists in this directory
+            if not change_yaml_path:
+                print(f"⚠️  Skipping {change_dir_name}: No change.yaml or change.yml file found")
                 continue
                 
             # Generate SQL for this change
@@ -457,14 +474,8 @@ def process_namespace(namespace):
     print("-" * 40)
     
     try:
-        # Initialize namespace if needed
-        db_path = commons.get_path(namespace, 'tracking_db')
-        if not os.path.exists(db_path):
-            print(f"🗄️  Creating new tracking database for {namespace}...")
-            init_namespace(namespace)
-        else:
-            print(f"📊 Using existing database for {namespace}")
-  
+        init_namespace(namespace)
+
         # Process changes for this namespace
         summary = process_new_change_files(namespace)
         
@@ -511,10 +522,6 @@ def process_all_namespaces():
     Returns:
         dict: Summary of processing results for all namespaces
     """
-    print("=" * 60)
-    print("🌐 PCM Stats Management - Processing All Namespaces")
-    print("=" * 60)
-    
     # Get all available namespaces
     namespaces = commons.get_available_namespaces()
     
@@ -670,7 +677,7 @@ def validate_required_fields_stats_file(data):
 def detect_yaml_file_type(file_path):
     """Detect whether this is a change file or stats file based on structure."""
     file_path = Path(file_path)
-    if file_path.is_file() and file_path.name.lower() == 'change.yaml':
+    if file_path.is_file() and file_path.name.lower() in ['change.yaml', 'change.yml']:
         return 'change_file'
     elif file_path.is_file() and file_path.name.lower() == 'stats.yaml':
         return 'stats_file'
@@ -725,14 +732,17 @@ def validate_change_files():
             changes_dir = Path(commons.get_path(namespace, 'changes_dir'))
             
             if changes_dir.exists():
-                # Look for change directories containing change.yaml files
+                # Look for change directories containing change.yaml or change.yml files
                 change_directories = [d for d in changes_dir.iterdir() if d.is_dir()]
                 change_files = []
                 
                 for change_dir in change_directories:
-                    change_yaml = change_dir / 'change.yaml'
-                    if change_yaml.exists():
-                        change_files.append(change_yaml)
+                    # Try both extensions
+                    for filename in ['change.yaml', 'change.yml']:
+                        change_file = change_dir / filename
+                        if change_file.exists():
+                            change_files.append(change_file)
+                            break  # Only add one file per directory
                 
                 all_change_files.extend([(f, f'change-{namespace}') for f in change_files])
                 print(f"🔍 Found {len(change_files)} change files in {changes_dir}")
@@ -750,10 +760,10 @@ def validate_change_files():
             is_valid, error = validate_single_yaml_file(yaml_file)
             
             if is_valid:
-                print(f"✅ {yaml_file.parent.name}/change.yaml ({file_category}): Valid")
+                print(f"✅ {yaml_file.parent.name}/{yaml_file.name} ({file_category}): Valid")
             else:
-                print(f"❌ {yaml_file.parent.name}/change.yaml ({file_category}): {error}")
-                validation_errors.append((f"{yaml_file.parent.name}/change.yaml", error))
+                print(f"❌ {yaml_file.parent.name}/{yaml_file.name} ({file_category}): {error}")
+                validation_errors.append((f"{yaml_file.parent.name}/{yaml_file.name}", error))
         
         # Summary
         if validation_errors:

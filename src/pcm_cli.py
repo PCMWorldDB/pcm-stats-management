@@ -37,10 +37,7 @@ from src import api as model_api
 
 def process_changes():
     """Process change files for all namespaces (main CI/CD operation)."""
-    print("🚀 Starting PCM stats processing for all namespaces...")
-
     try:
-        # Process all namespaces automatically using API
         summary = model_api.process_all_namespaces()
         
         print(json.dumps(summary))

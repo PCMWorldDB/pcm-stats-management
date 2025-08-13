@@ -66,7 +66,7 @@ jobs:
     - name: Validate YAML files
       run: |
         python src/pcm_cli.py validate-yaml
-    - name: Process all namespaces
+    - name: Process All Namespace Changes
       run: |
         python src/pcm_cli.py process-changes
     - name: Commit and push generated files
@@ -78,7 +78,7 @@ jobs:
           echo "No changes to commit"
         else
           git commit -m "Auto-generated: Process changes and update stats files
-          
+
           - Generated inserts.sql files for new changes
           - Updated stats.yaml files with new cyclist data
           
@@ -108,12 +108,12 @@ jobs:
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         
-    - name: UAT branch processing
+    - name: Sync Namespace Changes to UAT
       run: |
         echo "UAT branch detected - processing changes for UAT environment"
         python -m src.pcm_cli process-uat
         
-    - name: Commit and push UAT processing results
+    - name: Commit and push UAT change results
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -121,8 +121,8 @@ jobs:
         if git diff --staged --quiet; then
           echo "No changes to commit from UAT processing"
         else
-          git commit -m "Auto-generated: UAT processing results
-          
+          git commit -m "Auto-generated: UAT change results
+
           - Executed SQL inserts for new changes in tracking database
           - Generated tracking_export.csv files
           
