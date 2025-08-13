@@ -2,9 +2,9 @@ name: tests
 
 on:
   push:
-    branches: [ "*" ]
+    branches: [ "uat", "main", "feature/*" ]
   pull_request:
-    branches: [ "*" ]
+    branches: [ "uat", "main", "feature/*" ]
   workflow_dispatch:  # Allow manual triggering
 
 jobs:

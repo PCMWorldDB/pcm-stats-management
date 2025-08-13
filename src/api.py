@@ -42,6 +42,20 @@ def init_namespace(namespace):
     os.makedirs(base_path, exist_ok=True)
 
     create_new_database(namespace, 'tracking')
+    
+    # Check for init_cdb.sqlite file and import cyclists if it exists
+    init_db_path = os.path.join(commons.get_path(namespace, 'root'), 'init_cdb.sqlite')
+    if os.path.exists(init_db_path):
+        print(f"🔍 Found init database file: {init_db_path}")
+        print(f"📥 Importing cyclists from init database...")
+        
+        import_success = import_cyclists_from_db(namespace, init_db_path)
+        if import_success:
+            print(f"✅ Successfully imported cyclists from init database")
+        else:
+            print(f"❌ Failed to import cyclists from init database")
+    else:
+        print(f"ℹ️  No init database file found at: {init_db_path}")
 
 def create_new_database(namespace, type='tracking'):
     """
@@ -113,11 +127,6 @@ def update_stats_file_with_changes(namespace, change_yaml_path):
         else:
             stats_data = {}
         
-        # Normalize all keys to strings to avoid duplicates
-        normalized_stats = {}
-        for key, value in stats_data.items():
-            normalized_stats[str(key)] = value
-        stats_data = normalized_stats
         
         updates_made = 0
         cyclists_added = 0
@@ -274,14 +283,26 @@ def process_new_change_files(namespace):
                 continue
                 
             # Generate SQL for this change
-            file_sql, changes_count = _generate_sql_for_change_file(cursor, change_dir_name, change_yaml_path)
+            step1_sql, step2_sql, changes_count = _generate_sql_for_change_file(cursor, change_dir_name, change_yaml_path)
             if changes_count >= 0:
-                # Write SQL statements to the change directory's inserts.sql file
-                with open(inserts_sql_path, 'w') as f:
+                # Write single SQL file with all statements
+                inserts_sql_path = os.path.join(change_dir_path, 'inserts.sql')
+                with open(inserts_sql_path, 'w', encoding='utf-8') as f:
                     f.write(f"-- Generated SQL INSERT statements for {change_dir_name}\n")
                     f.write("-- Review before executing\n\n")
-                    for sql in file_sql:
-                        f.write(sql + ";\n")
+                    
+                    # Write Step 1 statements (tbl_changes and tbl_cyclists)
+                    if step1_sql:
+                        f.write("-- Step 1: tbl_changes and tbl_cyclists\n")
+                        for sql in step1_sql:
+                            f.write(sql + ";\n")
+                        f.write("\n")
+                    
+                    # Write Step 2 statements (tbl_change_stat_history)
+                    if step2_sql:
+                        f.write("-- Step 2: tbl_change_stat_history\n")
+                        for sql in step2_sql:
+                            f.write(sql + ";\n")
                 
                 # Update the stats.yaml file with the changes
                 print(f"🔄 Updating stats file for {change_dir_name}...")
@@ -313,6 +334,7 @@ def process_new_change_files(namespace):
 def _generate_sql_for_change_file(cursor, change_dir_name, change_yaml_path):
     """
     Generate SQL INSERT statements for a single change file.
+    Creates statements for tbl_changes, tbl_cyclists, and tbl_change_stat_history.
     
     Args:
         cursor: SQLite cursor
@@ -320,7 +342,7 @@ def _generate_sql_for_change_file(cursor, change_dir_name, change_yaml_path):
         change_yaml_path (str): Full path to the change.yaml file
     
     Returns:
-        tuple: (list of SQL statements, number of changes), (-1) on error
+        tuple: (list of SQL statements for basic tables, list of SQL statements for stat history, number of changes), (-1) on error
     """
     try:
         with open(change_yaml_path, 'r', encoding='utf-8') as f:
@@ -329,15 +351,19 @@ def _generate_sql_for_change_file(cursor, change_dir_name, change_yaml_path):
         # Validate required fields (name is not required since we use directory name)
         if not all(key in change_data for key in ['date', 'stats']):
             print(f"Skipping {change_dir_name}: Missing required fields (date, stats)")
-            return [], -1
+            return [], [], -1
         
-        sql_statements = []
+        step1_statements = []  # tbl_changes and tbl_cyclists
+        step2_statements = []  # tbl_change_stat_history
         
-        # Generate INSERT for tbl_changes (using change_dir_name as the name)
-        sql_statements.append(f"""INSERT INTO tbl_changes (name, description, author, date)
+        # Step 1: Generate INSERT for tbl_changes (using change_dir_name as the name)
+        step1_statements.append(f"""INSERT INTO tbl_changes (name, description, author, date)
 VALUES ('{change_dir_name}', '{change_data.get('description', '')}', '{change_data.get('author', 'Unknown')}', '{change_data['date']}')""")
         
         changes_inserted = 0
+        
+        # Step 1: Generate cyclist INSERTs
+        processed_cyclists = set()  # Track cyclists to avoid duplicates
         
         for stat_update in change_data['stats']:
             pcm_id = stat_update.get('pcm_id')
@@ -346,10 +372,20 @@ VALUES ('{change_dir_name}', '{change_data.get('description', '')}', '{change_da
             if not pcm_id or not cyclist_name:
                 continue
             
-            # Generate cyclist INSERT if not exists
-            cyclist_sql = _generate_cyclist_insert_if_not_exists(cursor, pcm_id, cyclist_name, stat_update)
-            if cyclist_sql:
-                sql_statements.append(cyclist_sql)
+            # Generate cyclist INSERT if not exists and not already processed
+            if pcm_id not in processed_cyclists:
+                cyclist_sql = _generate_cyclist_insert_if_not_exists(cursor, pcm_id, cyclist_name, stat_update)
+                if cyclist_sql:
+                    step1_statements.append(cyclist_sql)
+                processed_cyclists.add(pcm_id)
+        
+        # Step 2: Generate stat change INSERTs
+        for stat_update in change_data['stats']:
+            pcm_id = stat_update.get('pcm_id')
+            cyclist_name = stat_update.get('name')
+            
+            if not pcm_id or not cyclist_name:
+                continue
             
             # Generate stat change INSERTs using subqueries for foreign keys and version
             for stat_name in commons.STAT_KEYS:
@@ -360,7 +396,7 @@ VALUES ('{change_dir_name}', '{change_data.get('description', '')}', '{change_da
                 
                 # Check if this stat value is different from the latest version
                 if _should_insert_stat_change(cursor, pcm_id, stat_name, stat_value):
-                    sql_statements.append(f"""INSERT INTO tbl_change_stat_history (cyclist_id, change_id, stat_name, stat_value, version)
+                    step2_statements.append(f"""INSERT INTO tbl_change_stat_history (cyclist_id, change_id, stat_name, stat_value, version)
 VALUES (
     (SELECT id FROM tbl_cyclists WHERE pcm_id = '{pcm_id}'),
     (SELECT id FROM tbl_changes WHERE name = '{change_dir_name}'),
@@ -377,11 +413,11 @@ VALUES (
                     
                     changes_inserted += 1
         
-        return sql_statements, changes_inserted
+        return step1_statements, step2_statements, changes_inserted
         
     except Exception as e:
         print(f"Error processing change {change_dir_name}: {e}")
-        return [], -1
+        return [], [], -1
 
 def _generate_cyclist_insert_if_not_exists(cursor, pcm_id, name, stat_update):
     """Generate cyclist INSERT SQL if they don't exist in the database."""
@@ -970,4 +1006,275 @@ def import_cyclists_from_db(namespace, db_file):
         print(f"❌ Error importing from database: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+
+# =============================================================================
+# UAT Branch Processing Functions
+# =============================================================================
+
+def process_uat_changes():
+    """
+    Process UAT changes for all namespaces by executing SQL inserts and exporting tracking data.
+    
+    This function:
+    1. Reads tracking_db.sqlite for each namespace
+    2. Compares tbl_changes with change directories  
+    3. Sorts new changes alphanumerically (highest processed last)
+    4. Executes inserts.sql for each new change
+    5. Exports vw_tracking_export to tracking_export.csv
+    
+    Returns:
+        dict: Summary of UAT processing results for all namespaces
+    """
+    # Get all available namespaces
+    namespaces = commons.get_available_namespaces()
+    
+    if not namespaces:
+        print("⚠️  No namespaces found in the data directory")
+        return {
+            "processed_namespaces": 0,
+            "successful_namespaces": [],
+            "failed_namespaces": [],
+            "total_changes_executed": 0,
+            "overall_success": True
+        }
+    
+    print(f"Found {len(namespaces)} namespace(s): {', '.join(namespaces)}")
+    print()
+    
+    overall_summary = {
+        "processed_namespaces": 0,
+        "successful_namespaces": [],
+        "failed_namespaces": [],
+        "namespace_details": {},
+        "total_changes_executed": 0,
+        "overall_success": True
+    }
+    
+    for namespace in namespaces:
+        namespace_result = process_uat_namespace(namespace)
+        overall_summary['processed_namespaces'] += 1
+        overall_summary['namespace_details'][namespace] = namespace_result
+        overall_summary['total_changes_executed'] += namespace_result.get('changes_executed', 0)
+        
+        if namespace_result['success']:
+            overall_summary['successful_namespaces'].append(namespace)
+        else:
+            overall_summary['failed_namespaces'].append(namespace)
+            overall_summary['overall_success'] = False
+    
+    # Final summary
+    print("=" * 60)
+    print(f"📊 UAT Processing Summary:")
+    print(f"   - Total namespaces: {len(namespaces)}")
+    print(f"   - Successfully processed: {len(overall_summary['successful_namespaces'])}")
+    print(f"   - Failed: {len(overall_summary['failed_namespaces'])}")
+    print(f"   - Total changes executed: {overall_summary['total_changes_executed']}")
+    
+    if overall_summary["overall_success"]:
+        print("✅ All namespaces processed successfully")
+    else:
+        print("❌ One or more namespaces had issues")
+        if overall_summary["failed_namespaces"]:
+            print(f"   Failed namespaces: {', '.join(overall_summary['failed_namespaces'])}")
+    
+    print("=" * 60)
+    
+    return overall_summary
+
+def process_uat_namespace(namespace):
+    """
+    Process UAT changes for a single namespace.
+    
+    Args:
+        namespace (str): The namespace to process
+        
+    Returns:
+        dict: Summary of UAT processing results for this namespace
+    """
+    print(f"🔄 Processing UAT namespace: {namespace}")
+    print("-" * 40)
+    
+    try:
+        # Check if tracking database exists
+        db_path = commons.get_path(namespace, 'tracking_db')
+        if not os.path.exists(db_path):
+            print(f"❌ Tracking database not found for namespace: {namespace}")
+            return {
+                "namespace": namespace,
+                "success": False,
+                "error": f"Tracking database not found: {db_path}",
+                "changes_executed": 0,
+                "export_created": False
+            }
+        
+        print(f"📊 Using tracking database: {db_path}")
+        
+        # Get connection to tracking database
+        conn = get_database_connection(namespace)
+        cursor = conn.cursor()
+        
+        try:
+            # Get existing changes from database
+            cursor.execute("SELECT name FROM tbl_changes")
+            existing_changes = {row[0] for row in cursor.fetchall()}
+            print(f"📋 Found {len(existing_changes)} existing changes in database")
+            
+            # Get all change directories
+            changes_dir = commons.get_path(namespace, 'changes_dir')
+            
+            if not os.path.exists(changes_dir):
+                print(f"⚠️  Changes directory not found: {changes_dir}")
+                change_directories = []
+            else:
+                change_directories = [d for d in os.listdir(changes_dir) 
+                                    if os.path.isdir(os.path.join(changes_dir, d))]
+                print(f"📁 Found {len(change_directories)} change directories")
+            
+            # Find new change directories that haven't been processed
+            new_change_dirs = [d for d in change_directories if d not in existing_changes]
+            
+            # Sort alphanumerically (highest value processed last)
+            new_change_dirs.sort()
+            
+            print(f"🆕 Found {len(new_change_dirs)} new changes to process")
+            if new_change_dirs:
+                print(f"   - Changes: {', '.join(new_change_dirs)}")
+            
+            changes_executed = 0
+            
+            # Process each new change directory
+            for change_dir_name in new_change_dirs:
+                change_dir_path = os.path.join(changes_dir, change_dir_name)
+                inserts_sql_path = os.path.join(change_dir_path, 'inserts.sql')
+                
+                # Check if SQL file exists
+                if not os.path.exists(inserts_sql_path):
+                    print(f"⚠️  Skipping {change_dir_name}: No inserts.sql file found")
+                    continue
+                
+                print(f"⚡ Executing SQL for change: {change_dir_name}")
+                
+                # Execute SQL statements
+                try:
+                    print(f"   📋 Executing SQL statements")
+                    with open(inserts_sql_path, 'r', encoding='utf-8') as f:
+                        sql_content = f.read()
+                    
+                    # Split by semicolon, handling multi-line statements properly
+                    # Remove comments first, then split and clean
+                    lines = sql_content.split('\n')
+                    cleaned_lines = []
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith('--'):
+                            cleaned_lines.append(line)
+                    
+                    # Join lines and split by semicolon
+                    cleaned_sql = ' '.join(cleaned_lines)
+                    sql_statements = [stmt.strip() for stmt in cleaned_sql.split(';') if stmt.strip()]
+                    
+                    print(f"   🔧 Executing {len(sql_statements)} SQL statements")
+                    for sql_statement in sql_statements:
+                        if sql_statement:
+                            cursor.execute(sql_statement)
+                    
+                    conn.commit()
+                    changes_executed += 1
+                    print(f"   ✅ Successfully executed all SQL for {change_dir_name}")
+                    
+                except Exception as e:
+                    print(f"   ❌ Error executing SQL for {change_dir_name}: {e}")
+                    conn.rollback()
+                    continue
+            
+            # Export tracking data to CSV
+            conn.commit()
+            cursor = conn.cursor()
+            export_success = export_tracking_data(namespace, cursor)
+            
+            # Final summary for this namespace
+            summary = {
+                "namespace": namespace,
+                "success": True,
+                "error": None,
+                "changes_executed": changes_executed,
+                "export_created": export_success,
+                "total_changes_found": len(change_directories),
+                "new_changes_found": len(new_change_dirs)
+            }
+            
+            print(f"✅ Successfully processed namespace: {namespace}")
+            print(f"   - Changes executed: {changes_executed}")
+            print(f"   - Export created: {'Yes' if export_success else 'No'}")
+            
+            return summary
+            
+        finally:
+            conn.close()
+            
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ Error processing UAT namespace {namespace}: {error_msg}")
+        
+        return {
+            "namespace": namespace,
+            "success": False,
+            "error": error_msg,
+            "changes_executed": 0,
+            "export_created": False
+        }
+    finally:
+        print()  # Add spacing between namespaces
+
+def export_tracking_data(namespace, cursor):
+    """
+    Export tracking data from vw_tracking_export view to CSV file.
+    
+    Args:
+        namespace (str): The namespace to export data for
+        cursor: SQLite cursor connected to tracking database
+        
+    Returns:
+        bool: True if export was successful, False otherwise
+    """
+    try:
+        import csv
+        
+        # Export path
+        namespace_dir = commons.get_path(namespace, 'root')
+        export_path = os.path.join(namespace_dir, 'tracking_export.csv')
+        
+        print(f"📤 Exporting tracking data to: {export_path}")
+        
+        # Query the tracking export view
+        cursor.execute("SELECT * FROM vw_tracking_export")
+        rows = cursor.fetchall()
+        
+        if not rows:
+            print("⚠️  No data found in tracking export view")
+            return False
+        
+        # Get column names
+        cursor.execute("PRAGMA table_info(vw_tracking_export)")
+        # For a view, we need to get column names differently
+        cursor.execute("SELECT * FROM vw_tracking_export LIMIT 0")
+        column_names = [description[0] for description in cursor.description]
+        
+        # Write CSV file
+        with open(export_path, 'w', newline='', encoding='utf-8') as csvfile:
+            writer = csv.writer(csvfile)
+            
+            # Write header
+            writer.writerow(column_names)
+            
+            # Write data rows
+            writer.writerows(rows)
+        
+        print(f"✅ Successfully exported {len(rows)} rows to CSV")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error exporting tracking data: {e}")
         return False

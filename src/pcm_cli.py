@@ -11,11 +11,14 @@ Usage:
 Commands:
     process-changes- Process change files (main CI/CD operation)
     validate-yaml  - Validate YAML change files format
+    import-from-db - Import cyclist data from SQLite database
+    process-uat    - Process UAT changes by executing SQL and exporting data
     help           - Show this help message
 
 Examples:
     python pcm_cli.py process-changes
     python pcm_cli.py validate-yaml
+    python pcm_cli.py process-uat
 """
 
 import os
@@ -79,6 +82,29 @@ def import_from_db(namespace, db_file):
         import traceback
         traceback.print_exc()
         return False
+
+
+def process_uat():
+    """Process UAT changes by executing SQL inserts and exporting tracking data."""
+    try:
+        # Delegate to API for UAT processing logic
+        summary = model_api.process_uat_changes()
+        
+        print(json.dumps(summary))
+        
+        # Check if any changes were executed
+        if summary['total_changes_executed'] > 0:
+            print("✅ UAT processing completed successfully with changes executed!")
+            return True
+        else:
+            print("ℹ️  UAT processing completed - no new changes found.")
+            return summary['overall_success']
+            
+    except Exception as e:
+        print(f"❌ Error during UAT processing: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
   
 def main():
     """Main CLI entry point."""
@@ -89,13 +115,14 @@ def main():
 Examples:
     python pcm_cli.py process-changes
     python pcm_cli.py validate-yaml
+    python pcm_cli.py process-uat
     python pcm_cli.py import-from-db 2025 /path/to/database.sqlite
         """
     )
     
     parser.add_argument(
         'command',
-        choices=['process-changes', 'validate-yaml', 'import-from-db', 'help'],
+        choices=['process-changes', 'validate-yaml', 'import-from-db', 'process-uat', 'help'],
         help='Command to execute'
     )
     
@@ -142,6 +169,13 @@ Examples:
         print("=" * 60)
         
         success = import_from_db(args.namespace, args.db_file)
+        
+    elif args.command == 'process-uat':
+        print("=" * 60)
+        print(f"🚀 PCM Stats Management - UAT Processing")
+        print("=" * 60)
+        
+        success = process_uat()
         
     elif args.command == 'help':
         parser.print_help()
