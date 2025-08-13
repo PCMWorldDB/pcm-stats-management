@@ -1,0 +1,12 @@
+author: "neal"
+date: "2025-08-13"
+description: "my test a"
+stats:
+  - pcm_id: 1
+    name: Axel Froner
+    cob: 50
+    prl: 50
+  - pcm_id: 4
+    name: Valentin Madouas
+    dh: 50
+    spr: 50
