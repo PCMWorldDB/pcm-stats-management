@@ -1,12 +1,12 @@
 author: "neal"
-date: "2025-08-06"
-description: "test update"
+date: "2025-08-13"
+description: "run test-B"
 stats:
   - pcm_id: 1
     name: Axel Froner
-    cob: 78
-    prl: 78
+    cob: 30
+    prl: 30
   - pcm_id: 4
     name: Valentin Madouas
-    dh: 78
-    spr: 78
+    dh: 30
+    spr: 30
