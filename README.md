@@ -1,4 +1,4 @@
-# PCM Stats Management
+# <img src="images/worlddb_logo.jpg" alt="" width="30" height="30"> Stats Management
 
 A management system for Pro Cycling Manager (PCM) cyclist statistics with automated processing, change tracking, and collaborative review workflows.
 
@@ -70,4 +70,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-![Project Workflow](flow_img.jpg)
+![Project Workflow](images/workflow.jpg)
