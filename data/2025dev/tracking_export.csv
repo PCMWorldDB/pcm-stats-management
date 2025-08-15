@@ -1,4 +1,7 @@
 pcm_id,cyclist_name,first_cycling_id,change_name,change_description,change_author,change_date,stat_name,stat_value,stat_version
+301,Chris Froome,,2025-08-16-demo-test,demo test,neal,2025-08-15,cob,90,1
+301,Chris Froome,,2025-08-16-demo-test,demo test,neal,2025-08-15,mm,45,1
+301,Chris Froome,,2025-08-16-demo-test,demo test,neal,2025-08-15,prl,90,1
 1,Axel Froner,,2025-08-13-test,run test c,neal,2025-08-13,cob,40,1
 1,Axel Froner,,2025-08-13-test,run test c,neal,2025-08-13,prl,50,1
 4,Valentin Madouas,,2025-08-13-test,run test c,neal,2025-08-13,dh,60,1
