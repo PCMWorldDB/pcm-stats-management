@@ -1,12 +1,12 @@
 '1':
   name: Axel Froner
   first_cycling_id: 103812
-  stats: {fla: 65, mo: 60, mm: 61, dh: 64, cob: 40, tt: 57, prl: 50, spr: 65, acc: 68,
+  stats: {fla: 65, mo: 60, mm: 61, dh: 64, cob: 61, tt: 57, prl: 58, spr: 65, acc: 68,
     end: 62, res: 66, rec: 62, hil: 65, att: 67}
 '4':
   name: Valentin Madouas
   first_cycling_id: 37379
-  stats: {fla: 75, mo: 73, mm: 74, dh: 60, cob: 74, tt: 69, prl: 68, spr: 70, acc: 74,
+  stats: {fla: 75, mo: 73, mm: 74, dh: 71, cob: 74, tt: 69, prl: 68, spr: 68, acc: 74,
     end: 77, res: 77, rec: 75, hil: 76, att: 77}
 '16':
   name: Bauke Mollema
@@ -26,7 +26,7 @@
 '301':
   name: Chris Froome
   first_cycling_id: 713
-  stats: {fla: 66, mo: 68, mm: 68, dh: 68, cob: 61, tt: 63, prl: 58, spr: 59, acc: 64,
+  stats: {fla: 66, mo: 68, mm: 45, dh: 68, cob: 90, tt: 63, prl: 90, spr: 59, acc: 64,
     end: 66, res: 62, rec: 66, hil: 66, att: 67}
 '509':
   name: Lukasz Owsian
