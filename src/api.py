@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import yaml
+import re
 from pathlib import Path
 from src.utils import commons
 
@@ -1288,3 +1289,386 @@ def export_tracking_data(namespace, cursor):
     except Exception as e:
         print(f"❌ Error exporting tracking data: {e}")
         return False
+
+
+# =============================================================================
+# Automated Change Request Functions
+# =============================================================================
+
+def parse_github_issue_form(issue_body):
+    """
+    Parse GitHub issue form data from issue body text.
+    
+    Args:
+        issue_body (str): The raw issue body text from GitHub
+        
+    Returns:
+        dict: Parsed form data with keys: change_name, date, author, race_url, description, namespace, branch_name
+    """
+    import re
+    
+    def extract_field(pattern, text):
+        """Extract a field value using regex pattern."""
+        match = re.search(pattern, text, re.MULTILINE | re.DOTALL)
+        return match.group(1).strip() if match else ""
+    
+    # Parse form fields using regex patterns
+    change_name = extract_field(r'### Change Name\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    date = extract_field(r'### Date\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    author = extract_field(r'### Author\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    race_url = extract_field(r'### Race URL\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    description = extract_field(r'### Description\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    namespace = extract_field(r'### Namespace\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    
+    # Clean up change_name for branch name (remove special chars)
+    branch_name = re.sub(r'[^a-zA-Z0-9-_]', '-', change_name.lower())
+    branch_name = f"change/{branch_name}"
+    
+    return {
+        'change_name': change_name,
+        'date': date,
+        'author': author,
+        'race_url': race_url,
+        'description': description,
+        'namespace': namespace,
+        'branch_name': branch_name
+    }
+
+def fetch_firstcycling_html(race_url):
+    """
+    Fetch HTML content from a FirstCycling.com race URL.
+    
+    Args:
+        race_url (str): The FirstCycling race URL (must contain pcm=1 parameter)
+        
+    Returns:
+        tuple: (html_content, success boolean, error message)
+    """
+    try:
+        import requests
+        from urllib.parse import urlparse, parse_qs
+        
+        print(f"🌐 Fetching HTML from: {race_url}")
+        
+        # Verify pcm=1 parameter is present
+        parsed_url = urlparse(race_url)
+        query_params = parse_qs(parsed_url.query)
+        if 'pcm' not in query_params or '1' not in query_params['pcm']:
+            raise ValueError("URL must contain pcm=1 parameter for PCM data extraction")
+        
+        # Download the page
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(race_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        print(f"✅ Successfully fetched HTML content ({len(response.content)} bytes)")
+        return response.content, True, None
+        
+    except requests.RequestException as e:
+        error_msg = f"Network error accessing {race_url}: {str(e)}"
+        print(f"❌ {error_msg}")
+        return None, False, error_msg
+    except Exception as e:
+        error_msg = f"Error fetching HTML: {str(e)}"
+        print(f"❌ {error_msg}")
+        return None, False, error_msg
+
+def parse_firstcycling_html(html_content):
+    """
+    Parse cyclist data from FirstCycling.com HTML content.
+    
+    Args:
+        html_content (str or bytes): HTML content from FirstCycling page
+        
+    Returns:
+        tuple: (list of cyclist dicts, success boolean, error message)
+    """
+    try:
+        from bs4 import BeautifulSoup
+        
+        print("🔍 Parsing HTML content for cyclist data...")
+        
+        # Parse HTML
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        cyclists = []
+        
+        # Look for the main results table (usually contains PCM data when pcm=1 is set)
+        tables = soup.find_all('table')
+        
+        for table in tables:
+            rows = table.find_all('tr')
+            
+            for row_index, row in enumerate(rows):
+                # Skip header rows (usually row 0)
+                if row_index == 0:
+                    continue
+                
+                # Look for cyclist links in this row (with or without leading slash)
+                cyclist_links = row.find_all('a', href=re.compile(r'/?rider\.php\?r=\d+'))
+                
+                for link in cyclist_links:
+                    # Extract cyclist ID from href
+                    href = link.get('href', '')
+                    match = re.search(r'r=(\d+)', href)
+                    
+                    if match:
+                        rider_id = match.group(1)
+                        
+                        # Try to get name from title attribute first (more reliable)
+                        name = link.get('title', '').strip()
+                        
+                        # If we got name from title, convert from "First Last" to "Last First" format
+                        if name and ' ' in name:
+                            parts = name.strip().split()
+                            if len(parts) >= 2:
+                                # Convert "First Last" to "Last First"
+                                first_name = parts[0]
+                                last_name = ' '.join(parts[1:])  # Handle multiple last names
+                                name = f"{last_name} {first_name}"
+                        
+                        # If no title, try to parse the link text more carefully
+                        if not name:
+                            name = link.get_text(strip=True)
+                            # Handle case where we get "LampertiLuke" format
+                            # Try to add space before capital letters (crude but works for this case)
+                            name = re.sub(r'([a-z])([A-Z])', r'\1 \2', name)
+                        
+                        # Basic validation
+                        if name and len(name) > 1 and rider_id:
+                            cyclist_data = {
+                                'name': name,
+                                'href': href,
+                                'rider_id': rider_id,
+                                'table_row_number': row_index,
+                                'first_cycling_id': int(rider_id)  # For compatibility
+                            }
+                            cyclists.append(cyclist_data)
+                            print(f"   Found: {name} (ID: {rider_id}, Row: {row_index})")
+        
+        # Remove duplicates based on rider_id (keep first occurrence)
+        seen_ids = set()
+        unique_cyclists = []
+        for cyclist in cyclists:
+            if cyclist['rider_id'] not in seen_ids:
+                seen_ids.add(cyclist['rider_id'])
+                unique_cyclists.append(cyclist)
+        
+        print(f"✅ Parsed {len(unique_cyclists)} unique cyclists")
+        return unique_cyclists, True, None
+        
+    except Exception as e:
+        error_msg = f"Error parsing HTML content: {str(e)}"
+        print(f"❌ {error_msg}")
+        return [], False, error_msg
+
+def scrape_firstcycling_cyclists(race_url):
+    """
+    Scrape cyclist data from a FirstCycling.com race URL with PCM data.
+    
+    Args:
+        race_url (str): The FirstCycling race URL (must contain pcm=1 parameter)
+        
+    Returns:
+        tuple: (list of cyclist dicts, success boolean, error message)
+    """
+    # Step 1: Fetch HTML content
+    html_content, fetch_success, fetch_error = fetch_firstcycling_html(race_url)
+    
+    if not fetch_success:
+        return [], False, fetch_error
+    
+    # Step 2: Parse HTML content
+    cyclists, parse_success, parse_error = parse_firstcycling_html(html_content)
+    
+    return cyclists, parse_success, parse_error
+
+def create_automated_change_file(namespace, change_name, form_data, cyclists):
+    """
+    Create a change directory and change.yaml file from automated request.
+    Looks up cyclists from scraped data in the stats.yaml file and includes their current stats.
+    
+    Args:
+        namespace (str): The namespace for the change
+        change_name (str): Name of the change
+        form_data (dict): Parsed form data from GitHub issue
+        cyclists (list): List of cyclist dictionaries from scraping (with first_cycling_id)
+        
+    Returns:
+        tuple: (change_file_path, success boolean, error message)
+    """
+    try:
+        # Create the change directory
+        change_dir = os.path.join(commons.get_path(namespace, 'changes_dir'), change_name)
+        os.makedirs(change_dir, exist_ok=True)
+        
+        # Load existing stats.yaml file to lookup cyclists
+        stats_file_path = commons.get_path(namespace, 'stats_file')
+        existing_cyclists = {}
+        
+        if os.path.exists(stats_file_path):
+            print(f"📊 Loading existing stats from: {stats_file_path}")
+            with open(stats_file_path, 'r', encoding='utf-8') as f:
+                existing_cyclists = yaml.safe_load(f) or {}
+            print(f"   - Found {len(existing_cyclists)} existing cyclists in stats file")
+        else:
+            print(f"⚠️  Stats file not found: {stats_file_path}")
+        
+        # Build stats list by matching first_cycling_id values
+        matched_cyclists = []
+        not_found_cyclists = []
+        
+        for scraped_cyclist in cyclists:
+            first_cycling_id = scraped_cyclist.get('first_cycling_id')
+            scraped_name = scraped_cyclist.get('name', '')
+            
+            if not first_cycling_id:
+                print(f"⚠️  Skipping cyclist {scraped_name}: No first_cycling_id")
+                not_found_cyclists.append(scraped_name)
+                continue
+            
+            # Look for this first_cycling_id in existing cyclists
+            found_cyclist = None
+            found_pcm_id = None
+            
+            for pcm_id, cyclist_data in existing_cyclists.items():
+                if cyclist_data.get('first_cycling_id') == first_cycling_id:
+                    found_cyclist = cyclist_data
+                    found_pcm_id = pcm_id
+                    break
+            
+            if found_cyclist:
+                # Create cyclist entry for change file with existing stats
+                cyclist_entry = {
+                    'pcm_id': found_pcm_id,
+                    'name': found_cyclist['name'],
+                    'first_cycling_id': first_cycling_id
+                }
+                
+                # Include existing stats if available
+                if 'stats' in found_cyclist:
+                    cyclist_entry.update(found_cyclist['stats'])
+                
+                matched_cyclists.append(cyclist_entry)
+                print(f"   ✅ Matched: {scraped_name} -> {found_cyclist['name']} (PCM ID: {found_pcm_id})")
+            else:
+                print(f"   ❌ Not found: {scraped_name} (FirstCycling ID: {first_cycling_id})")
+                not_found_cyclists.append(f"{scraped_name} (FC ID: {first_cycling_id})")
+        
+        # Create change.yaml content
+        change_data = {
+            'author': form_data['author'],
+            'date': form_data['date'],
+            'description': form_data.get('description', ''),
+            'race_url': form_data['race_url'],  # Include race URL for reference
+            'stats': matched_cyclists
+        }
+        
+        # Write change.yaml file
+        change_file_path = os.path.join(change_dir, 'change.yaml')
+        with open(change_file_path, 'w', encoding='utf-8') as f:
+            yaml.dump(change_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        
+        print(f"✅ Created change file: {change_file_path}")
+        print(f"   - Change: {change_name}")
+        print(f"   - Author: {form_data['author']}")
+        print(f"   - Date: {form_data['date']}")
+        print(f"   - Cyclists matched: {len(matched_cyclists)}")
+        print(f"   - Cyclists not found: {len(not_found_cyclists)}")
+        
+        if not_found_cyclists:
+            print(f"   ⚠️  Not found in stats file: {', '.join(not_found_cyclists[:5])}")
+            if len(not_found_cyclists) > 5:
+                print(f"      ... and {len(not_found_cyclists) - 5} more")
+        
+        return change_file_path, True, None
+        
+    except Exception as e:
+        error_msg = f"Error creating change file: {str(e)}"
+        print(f"❌ {error_msg}")
+        return None, False, error_msg
+
+def process_automated_change_request(issue_body):
+    """
+    Complete processing of an automated change request from GitHub issue.
+    
+    Args:
+        issue_body (str): Raw GitHub issue body text
+        
+    Returns:
+        dict: Processing results with success status, file paths, and statistics
+    """
+    result = {
+        'success': False,
+        'form_data': None,
+        'cyclists_found': 0,
+        'change_file_path': None,
+        'error': None
+    }
+    
+    try:
+        # Step 1: Parse form data
+        print("📋 Parsing GitHub issue form data...")
+        form_data = parse_github_issue_form(issue_body)
+        result['form_data'] = form_data
+        
+        if not all([form_data['change_name'], form_data['date'], form_data['author'], 
+                   form_data['race_url'], form_data['namespace']]):
+            raise ValueError("Missing required form fields")
+        
+        print(f"   ✅ Parsed form data for change: {form_data['change_name']}")
+        
+        # Step 1.5: Validate race URL format
+        print("🔍 Validating race URL format...")
+        race_url = form_data['race_url']
+        if not race_url.startswith(('http://', 'https://')):
+            race_url = 'https://' + race_url
+            form_data['race_url'] = race_url
+        
+        import re
+        # Validate URL format and extract components in one regex
+        url_match = re.match(r'^(https?://(?:www\.)?firstcycling\.com/race\.php)(\?.*)?$', race_url)
+        if not url_match:
+            raise ValueError(f"Invalid URL format. Expected firstcycling.com/race.php URL, got: {race_url}")
+        
+        # Check for pcm=1 parameter and add if missing
+        if not re.search(r'[?&]pcm=1(?:&|$)', race_url):
+            separator = '&' if '?' in race_url else '?'
+            race_url = race_url + separator + 'pcm=1'
+            form_data['race_url'] = race_url
+            print(f"   ✅ Added pcm=1 parameter to URL")
+        
+        print(f"   ✅ Valid FirstCycling race URL with PCM data: {race_url}")
+        
+        # Step 2: Scrape cyclist data
+        print("🌐 Scraping cyclist data...")
+        cyclists, scrape_success, scrape_error = scrape_firstcycling_cyclists(form_data['race_url'])
+        result['cyclists_found'] = len(cyclists)
+        
+        if not scrape_success:
+            print(f"⚠️  Scraping failed: {scrape_error}")
+            print("   Creating change file with empty cyclist list")
+            cyclists = []  # Continue with empty list
+        
+        # Step 3: Create change file
+        print("📝 Creating change file...")
+        change_file_path, create_success, create_error = create_automated_change_file(
+            form_data['namespace'], form_data['change_name'], form_data, cyclists
+        )
+        
+        if not create_success:
+            raise Exception(f"Failed to create change file: {create_error}")
+        
+        result['change_file_path'] = change_file_path
+        
+        result['success'] = True
+        print("🎉 Automated change request processed successfully!")
+        
+    except Exception as e:
+        error_msg = str(e)
+        result['error'] = error_msg
+        print(f"❌ Error processing automated change request: {error_msg}")
+    
+    return result

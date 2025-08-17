@@ -9,16 +9,20 @@ Usage:
     python pcm_cli.py <command> [options]
 
 Commands:
-    process-changes- Process change files (main CI/CD operation)
-    validate-yaml  - Validate YAML change files format
-    import-from-db - Import cyclist data from SQLite database
-    process-uat    - Process UAT changes by executing SQL and exporting data
-    help           - Show this help message
+    process-changes        - Process change files (main CI/CD operation)
+    validate-yaml          - Validate YAML change files format
+    import-from-db         - Import cyclist data from SQLite database
+    process-uat            - Process UAT changes by executing SQL and exporting data
+    parse-github-issue     - Parse GitHub issue form data (for automation)
+    process-automated-change - Process automated change request (for automation)
+    help                   - Show this help message
 
 Examples:
     python pcm_cli.py process-changes
     python pcm_cli.py validate-yaml
     python pcm_cli.py process-uat
+    python pcm_cli.py parse-github-issue "$ISSUE_BODY"
+    python pcm_cli.py process-automated-change "$ISSUE_BODY"
 """
 
 import os
@@ -102,6 +106,74 @@ def process_uat():
         import traceback
         traceback.print_exc()
         return False
+
+
+def parse_github_issue(issue_body):
+    """Parse GitHub issue form data and output as GitHub Actions outputs."""
+    try:
+        # Delegate to API for parsing logic
+        form_data = model_api.parse_github_issue_form(issue_body)
+        
+        # Output for GitHub Actions (key=value format)
+        github_output_file = os.environ.get('GITHUB_OUTPUT')
+        if github_output_file:
+            with open(github_output_file, 'a') as f:
+                for key, value in form_data.items():
+                    f.write(f"{key}={value}\n")
+        
+        # Also print for debugging
+        print("Extracted form data:")
+        for key, value in form_data.items():
+            print(f"  {key}: {value}")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error parsing GitHub issue: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def process_automated_change(issue_body):
+    """Process automated change request and output results."""
+    try:
+        # First parse the form data to get all the fields
+        form_data = model_api.parse_github_issue_form(issue_body)
+        
+        # Then process the automated change request
+        result = model_api.process_automated_change_request(issue_body)
+        
+        # Output for GitHub Actions (key=value format)
+        github_output_file = os.environ.get('GITHUB_OUTPUT')
+        if github_output_file:
+            with open(github_output_file, 'a') as f:
+                # Write form data first
+                for key, value in form_data.items():
+                    f.write(f"{key}={value}\n")
+                
+                # Write processing results
+                f.write(f"success={str(result['success']).lower()}\n")
+                f.write(f"cyclists_found={result['cyclists_found']}\n")
+                if result['error']:
+                    f.write(f"error={result['error']}\n")
+                if result['change_file_path']:
+                    f.write(f"change_file_path={result['change_file_path']}\n")
+        
+        # Print result for debugging
+        print("Form data:")
+        for key, value in form_data.items():
+            print(f"  {key}: {value}")
+        print(f"Processing result: {result}")
+        
+        # Return success status
+        return result['success']
+        
+    except Exception as e:
+        print(f"❌ Error processing automated change: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
   
 def main():
     """Main CLI entry point."""
@@ -114,19 +186,22 @@ Examples:
     python pcm_cli.py validate-yaml
     python pcm_cli.py process-uat
     python pcm_cli.py import-from-db 2025 /path/to/database.sqlite
+    python pcm_cli.py parse-github-issue "$ISSUE_BODY"
+    python pcm_cli.py process-automated-change "$ISSUE_BODY"
         """
     )
     
     parser.add_argument(
         'command',
-        choices=['process-changes', 'validate-yaml', 'import-from-db', 'process-uat', 'help'],
+        choices=['process-changes', 'validate-yaml', 'import-from-db', 'process-uat', 
+                'parse-github-issue', 'process-automated-change', 'help'],
         help='Command to execute'
     )
     
     parser.add_argument(
         'namespace',
         nargs='?',
-        help='Namespace for import-from-db command'
+        help='Namespace for import-from-db command, or issue body for GitHub commands'
     )
     
     parser.add_argument(
@@ -173,6 +248,24 @@ Examples:
         print("=" * 60)
         
         success = process_uat()
+        
+    elif args.command == 'parse-github-issue':
+        if not args.namespace:
+            print("❌ Error: parse-github-issue command requires issue body as argument")
+            print("Usage: python pcm_cli.py parse-github-issue \"$ISSUE_BODY\"")
+            return 1
+        
+        success = parse_github_issue(args.namespace)  # namespace arg contains issue body
+        
+    elif args.command == 'process-automated-change':
+        if not args.namespace:
+            print("❌ Error: process-automated-change command requires issue body as argument")
+            print("Usage: python pcm_cli.py process-automated-change \"$ISSUE_BODY\"")
+            return 1
+        
+        success = process_automated_change(args.namespace)  # namespace arg contains issue body
+        if not success:
+            return 1  # Exit with error code for GitHub Actions to detect failure
         
     elif args.command == 'help':
         parser.print_help()

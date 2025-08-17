@@ -1,0 +1,86 @@
+name: 📊 PCM Stats Change Request
+description: Request a new change to cyclist statistics
+title: "[CHANGE] "
+labels: ["change-request", "automated"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 📊 PCM Stats Change Request
+        
+        Fill out this form to automatically create a new stats change. This will:
+        1. Create a new change branch
+        2. Generate a change.yaml file with cyclists from the race URL
+        3. Create a pull request for review
+        
+        ---
+
+  - type: input
+    id: change_name
+    attributes:
+      label: Change Name
+      description: A unique name for this change (will be used as branch name)
+      placeholder: "e.g., 2025-08-15-tour-de-france-stage-1"
+    validations:
+      required: true
+
+  - type: input
+    id: date
+    attributes:
+      label: Date
+      description: Date of the change (YYYY-MM-DD format)
+      placeholder: "2025-08-15"
+    validations:
+      required: true
+
+  - type: input
+    id: author
+    attributes:
+      label: Author
+      description: Your name or username
+      placeholder: "Your Name"
+    validations:
+      required: true
+
+  - type: input
+    id: race_url
+    attributes:
+      label: Race URL
+      description: FirstCycling.com race URL to extract cyclist data from
+      placeholder: "https://firstcycling.com/race.php?r=XXXXX"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Brief description of the change
+      placeholder: "Update stats after Tour de France Stage 1..."
+    validations:
+      required: false
+
+  - type: dropdown
+    id: namespace
+    attributes:
+      label: Namespace
+      description: Which namespace should this change be applied to?
+      options:
+        - 2025dev
+        - procyclingstats
+        - other
+      default: 0
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmation
+      description: Please confirm the following
+      options:
+        - label: I have verified the race URL is correct and accessible
+          required: true
+        - label: I understand this will create an automated pull request
+          required: true
