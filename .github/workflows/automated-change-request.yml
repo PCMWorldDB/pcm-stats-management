@@ -6,7 +6,7 @@ on:
 
 jobs:
   process-stats-change-request:
-    if: contains(github.event.issue.labels.*.name, 'change-request')
+    if: startsWith(github.event.issue.title, '[STATS CHANGE]')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -35,7 +35,7 @@ jobs:
           
           # Process automated change request (this also parses the form data)
           echo "⚙️ Processing automated change request..."
-          python src/pcm_cli.py process-automated-change "${{ github.event.issue.body }}" --github-actor "${{ github.actor }}"
+          python src/pcm_cli.py process-automated-change "${{ github.event.issue.body }}" --github-actor "${{ github.actor }}" --issue-title "${{ github.event.issue.title }}"
           
           # Get values from the output file
           BRANCH_NAME=$(grep "branch_name=" $GITHUB_OUTPUT | cut -d'=' -f2)

@@ -157,7 +157,7 @@ procyclingstats"""
         
         # Assertions
         assert result is True
-        mock_parse.assert_called_once_with(self.sample_issue_body)
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
         
         # Check that GitHub output file was written
         mock_file.assert_called_with('/tmp/github_output', 'a')
@@ -181,7 +181,7 @@ procyclingstats"""
         
         # Assertions
         assert result is True
-        mock_parse.assert_called_once_with(self.sample_issue_body)
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
 
     @patch('src.pcm_cli.model_api.parse_github_issue_form')
     def test_parse_github_issue_failure(self, mock_parse):
@@ -194,7 +194,7 @@ procyclingstats"""
         
         # Assertions
         assert result is False
-        mock_parse.assert_called_once_with(self.sample_issue_body)
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
 
     @patch.dict('os.environ', {'GITHUB_OUTPUT': '/tmp/github_output'})
     @patch('builtins.open', new_callable=mock_open)
@@ -217,8 +217,8 @@ procyclingstats"""
         
         # Assertions
         assert result is True
-        mock_parse.assert_called_once_with(self.sample_issue_body)
-        mock_process.assert_called_once_with(self.sample_issue_body)
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
+        mock_process.assert_called_once_with(self.sample_issue_body, author_override=None, issue_title=None)
         
         # Check that GitHub output file was written
         mock_file.assert_called_with('/tmp/github_output', 'a')
@@ -262,8 +262,8 @@ procyclingstats"""
         
         # Assertions
         assert result is False
-        mock_parse.assert_called_once_with(self.sample_issue_body)
-        mock_process.assert_called_once_with(self.sample_issue_body)
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
+        mock_process.assert_called_once_with(self.sample_issue_body, author_override=None, issue_title=None)
         
         # Check that GitHub output file was written
         mock_file.assert_called_with('/tmp/github_output', 'a')
@@ -286,6 +286,79 @@ procyclingstats"""
         for expected_line in expected_result_lines:
             assert expected_line in written_lines
 
+    @patch.dict('os.environ', {'GITHUB_OUTPUT': '/tmp/github_output'})
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('src.pcm_cli.model_api.parse_github_issue_form')
+    @patch('src.pcm_cli.model_api.process_automated_change_request')
+    def test_process_automated_change_with_github_actor(self, mock_process, mock_parse, mock_file):
+        """Test process_automated_change CLI function with GitHub actor override."""
+        # Mock form data without author
+        form_data_no_author = self.expected_form_data.copy()
+        form_data_no_author['author'] = ''  # Empty author
+        mock_parse.return_value = form_data_no_author
+        
+        mock_result = {
+            'success': True,
+            'cyclists_found': 3,
+            'change_file_path': '/test/changes/tour-of-panama/change.yaml',
+            'error': None
+        }
+        mock_process.return_value = mock_result
+        
+        # Call function with GitHub actor
+        result = pcm_cli.process_automated_change(self.sample_issue_body, "github_user123")
+        
+        # Assertions
+        assert result is True
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
+        mock_process.assert_called_once_with(self.sample_issue_body, author_override="github_user123", issue_title=None)
+        
+        # Check that GitHub output file was written
+        mock_file.assert_called_with('/tmp/github_output', 'a')
+        handle = mock_file()
+        
+        # Verify author was overridden in output
+        written_lines = [call.args[0] for call in handle.write.call_args_list]
+        assert 'author=github_user123\n' in written_lines
+
+    @patch.dict('os.environ', {'GITHUB_OUTPUT': '/tmp/github_output'})
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('src.pcm_cli.model_api.parse_github_issue_form')
+    @patch('src.pcm_cli.model_api.process_automated_change_request')
+    def test_process_automated_change_with_issue_title(self, mock_process, mock_parse, mock_file):
+        """Test process_automated_change CLI function with issue title extraction."""
+        # Mock form data with change_name extracted from title
+        form_data_with_title = self.expected_form_data.copy()
+        form_data_with_title['change_name'] = 'Tour de France Stage 1'
+        form_data_with_title['branch_name'] = 'change/2025-08-06-tour-de-france-stage-1'
+        mock_parse.return_value = form_data_with_title
+        
+        mock_result = {
+            'success': True,
+            'cyclists_found': 3,
+            'change_file_path': '/test/changes/tour-de-france-stage-1/change.yaml',
+            'error': None
+        }
+        mock_process.return_value = mock_result
+        
+        # Call function with issue title
+        issue_title = "[STATS CHANGE] Tour de France Stage 1"
+        result = pcm_cli.process_automated_change(self.sample_issue_body, "github_user123", issue_title)
+        
+        # Assertions
+        assert result is True
+        mock_parse.assert_called_once_with(self.sample_issue_body, issue_title)
+        mock_process.assert_called_once_with(self.sample_issue_body, author_override="github_user123", issue_title=issue_title)
+        
+        # Check that GitHub output file was written
+        mock_file.assert_called_with('/tmp/github_output', 'a')
+        handle = mock_file()
+        
+        # Verify change_name from title was used in output
+        written_lines = [call.args[0] for call in handle.write.call_args_list]
+        assert 'change_name=Tour de France Stage 1\n' in written_lines
+        assert 'branch_name=change/2025-08-06-tour-de-france-stage-1\n' in written_lines
+
     @patch('src.pcm_cli.model_api.parse_github_issue_form')
     @patch('src.pcm_cli.model_api.process_automated_change_request')
     def test_process_automated_change_exception(self, mock_process, mock_parse):
@@ -298,7 +371,7 @@ procyclingstats"""
         
         # Assertions
         assert result is False
-        mock_parse.assert_called_once_with(self.sample_issue_body)
+        mock_parse.assert_called_once_with(self.sample_issue_body, None)
         # process should not be called if parse fails
         mock_process.assert_not_called()
 
@@ -328,7 +401,7 @@ procyclingstats"""
         
         # Assertions
         assert result == 0
-        mock_parse.assert_called_once_with('test_issue_body')
+        mock_parse.assert_called_once_with('test_issue_body', None, None)
 
     @patch('sys.argv', ['pcm_cli.py', 'parse-github-issue'])
     @patch('sys.stdout', new_callable=StringIO)
@@ -354,7 +427,7 @@ procyclingstats"""
         
         # Assertions
         assert result == 0
-        mock_process.assert_called_once_with('test_issue_body')
+        mock_process.assert_called_once_with('test_issue_body', None, None)
 
     @patch('sys.argv', ['pcm_cli.py', 'process-automated-change', 'test_issue_body'])
     @patch('src.pcm_cli.process_automated_change')
@@ -368,7 +441,7 @@ procyclingstats"""
         
         # Assertions
         assert result == 1  # Should exit with error code
-        mock_process.assert_called_once_with('test_issue_body')
+        mock_process.assert_called_once_with('test_issue_body', None, None)
 
     @patch('sys.argv', ['pcm_cli.py', 'process-automated-change'])
     @patch('sys.stdout', new_callable=StringIO)

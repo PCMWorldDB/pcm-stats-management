@@ -108,11 +108,11 @@ def process_uat():
         return False
 
 
-def parse_github_issue(issue_body, github_actor=None):
+def parse_github_issue(issue_body, github_actor=None, issue_title=None):
     """Parse GitHub issue form data and output as GitHub Actions outputs."""
     try:
         # Delegate to API for parsing logic
-        form_data = model_api.parse_github_issue_form(issue_body)
+        form_data = model_api.parse_github_issue_form(issue_body, issue_title)
         
         # Override author with GitHub actor if provided and author is empty
         if github_actor and not form_data.get('author'):
@@ -139,18 +139,18 @@ def parse_github_issue(issue_body, github_actor=None):
         return False
 
 
-def process_automated_change(issue_body, github_actor=None):
+def process_automated_change(issue_body, github_actor=None, issue_title=None):
     """Process automated change request and output results."""
     try:
         # First parse the form data to get all the fields
-        form_data = model_api.parse_github_issue_form(issue_body)
+        form_data = model_api.parse_github_issue_form(issue_body, issue_title)
         
         # Override author with GitHub actor if provided and author is empty
         if github_actor and not form_data.get('author'):
             form_data['author'] = github_actor
         
         # Then process the automated change request with the updated form data
-        result = model_api.process_automated_change_request(issue_body, author_override=github_actor)
+        result = model_api.process_automated_change_request(issue_body, author_override=github_actor, issue_title=issue_title)
         
         # Output for GitHub Actions (key=value format)
         github_output_file = os.environ.get('GITHUB_OUTPUT')
@@ -223,6 +223,11 @@ Examples:
         help='GitHub username for author field (for GitHub Actions automation)'
     )
     
+    parser.add_argument(
+        '--issue-title',
+        help='GitHub issue title (for extracting change name from title)'
+    )
+    
     # Handle no arguments or help
     if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] in ['help', '--help', '-h']):
         parser.print_help()
@@ -265,18 +270,18 @@ Examples:
     elif args.command == 'parse-github-issue':
         if not args.namespace:
             print("❌ Error: parse-github-issue command requires issue body as argument")
-            print("Usage: python pcm_cli.py parse-github-issue \"$ISSUE_BODY\" [--github-actor USERNAME]")
+            print("Usage: python pcm_cli.py parse-github-issue \"$ISSUE_BODY\" [--github-actor USERNAME] [--issue-title TITLE]")
             return 1
         
-        success = parse_github_issue(args.namespace, args.github_actor)  # namespace arg contains issue body
+        success = parse_github_issue(args.namespace, args.github_actor, args.issue_title)  # namespace arg contains issue body
         
     elif args.command == 'process-automated-change':
         if not args.namespace:
             print("❌ Error: process-automated-change command requires issue body as argument")
-            print("Usage: python pcm_cli.py process-automated-change \"$ISSUE_BODY\" [--github-actor USERNAME]")
+            print("Usage: python pcm_cli.py process-automated-change \"$ISSUE_BODY\" [--github-actor USERNAME] [--issue-title TITLE]")
             return 1
         
-        success = process_automated_change(args.namespace, args.github_actor)  # namespace arg contains issue body
+        success = process_automated_change(args.namespace, args.github_actor, args.issue_title)  # namespace arg contains issue body
         if not success:
             return 1  # Exit with error code for GitHub Actions to detect failure
         

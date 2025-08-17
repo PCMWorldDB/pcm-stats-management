@@ -1295,12 +1295,13 @@ def export_tracking_data(namespace, cursor):
 # Automated Change Request Functions
 # =============================================================================
 
-def parse_github_issue_form(issue_body):
+def parse_github_issue_form(issue_body, issue_title=None):
     """
     Parse GitHub issue form data from issue body text.
     
     Args:
         issue_body (str): The raw issue body text from GitHub
+        issue_title (str, optional): The issue title to extract change_name from
         
     Returns:
         dict: Parsed form data with keys: change_name, date, author, race_url, description, namespace, branch_name
@@ -1312,8 +1313,16 @@ def parse_github_issue_form(issue_body):
         match = re.search(pattern, text, re.MULTILINE | re.DOTALL)
         return match.group(1).strip() if match else ""
     
-    # Parse form fields using regex patterns
-    change_name = extract_field(r'### Change Name\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    # Extract change_name from issue title if provided, otherwise fall back to form field
+    if issue_title:
+        # Extract everything after "[STATS CHANGE]" from the title
+        title_match = re.search(r'\[STATS CHANGE\]\s*(.+)', issue_title, re.IGNORECASE)
+        change_name = title_match.group(1).strip() if title_match else ""
+    else:
+        # Fall back to form field extraction for backwards compatibility
+        change_name = extract_field(r'### Change Name\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    
+    # Parse other form fields using regex patterns
     date = extract_field(r'### Date\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     author = extract_field(r'### Author\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     race_url = extract_field(r'### Race URL\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
@@ -1590,13 +1599,14 @@ def create_automated_change_file(namespace, change_name, form_data, cyclists):
         print(f"❌ {error_msg}")
         return None, False, error_msg
 
-def process_automated_change_request(issue_body, author_override=None):
+def process_automated_change_request(issue_body, author_override=None, issue_title=None):
     """
     Complete processing of an automated change request from GitHub issue.
     
     Args:
         issue_body (str): Raw GitHub issue body text
         author_override (str, optional): Override author field with this value (e.g., GitHub username)
+        issue_title (str, optional): Issue title to extract change_name from
         
     Returns:
         dict: Processing results with success status, file paths, and statistics
@@ -1612,7 +1622,7 @@ def process_automated_change_request(issue_body, author_override=None):
     try:
         # Step 1: Parse form data
         print("📋 Parsing GitHub issue form data...")
-        form_data = parse_github_issue_form(issue_body)
+        form_data = parse_github_issue_form(issue_body, issue_title)
         
         # Override author if provided and current author is empty
         if author_override and not form_data.get('author'):
