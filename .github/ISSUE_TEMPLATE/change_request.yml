@@ -1,6 +1,6 @@
 name: 📊 PCM Stats Change Request
 description: Request a new change to cyclist statistics
-title: "[CHANGE] "
+title: "[STATS CHANGE] "
 labels: ["change-request", "automated"]
 assignees: []
 body:
@@ -14,6 +14,8 @@ body:
         2. Generate a change.yaml file with cyclists from the race URL
         3. Create a pull request for review
         
+        **Author:** Your GitHub username will be automatically used as the author.
+        
         ---
 
   - type: input
@@ -21,7 +23,7 @@ body:
     attributes:
       label: Change Name
       description: A unique name for this change (will be used as branch name)
-      placeholder: "e.g., 2025-08-15-tour-de-france-stage-1"
+      placeholder: "e.g., Tour de France Stage 1"
     validations:
       required: true
 
@@ -31,15 +33,6 @@ body:
       label: Date
       description: Date of the change (YYYY-MM-DD format)
       placeholder: "2025-08-15"
-    validations:
-      required: true
-
-  - type: input
-    id: author
-    attributes:
-      label: Author
-      description: Your name or username
-      placeholder: "Your Name"
     validations:
       required: true
 

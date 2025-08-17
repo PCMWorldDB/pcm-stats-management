@@ -35,7 +35,7 @@ jobs:
           
           # Process automated change request (this also parses the form data)
           echo "⚙️ Processing automated change request..."
-          python src/pcm_cli.py process-automated-change "${{ github.event.issue.body }}"
+          python src/pcm_cli.py process-automated-change "${{ github.event.issue.body }}" --github-actor "${{ github.actor }}"
           
           # Get values from the output file
           BRANCH_NAME=$(grep "branch_name=" $GITHUB_OUTPUT | cut -d'=' -f2)

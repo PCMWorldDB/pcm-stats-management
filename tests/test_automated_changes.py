@@ -90,7 +90,7 @@ procyclingstats
         assert result['race_url'] == 'https://firstcycling.com/race.php?r=32345&y=2025'
         assert result['description'] == 'Adding results from Stage 1 of the Tour of Panama. Great race with strong competition.'
         assert result['namespace'] == 'procyclingstats'
-        assert result['branch_name'] == 'change/tour-of-panama---stage-1-results'
+        assert result['branch_name'] == 'change/2025-08-06-tour-of-panama---stage-1-results'
         
         # Check that branch name is properly sanitized
         assert ' ' not in result['branch_name']
@@ -139,7 +139,7 @@ test
         
         # Check that special characters are properly handled in branch name
         assert result['change_name'] == 'Test Race (2025) - Stage #1 & Results!'
-        assert result['branch_name'] == 'change/test-race--2025----stage--1---results-'
+        assert result['branch_name'] == 'change/2025-08-06-test-race--2025----stage--1---results-'
         
         # Only alphanumeric, hyphens, and underscores should remain
         import re

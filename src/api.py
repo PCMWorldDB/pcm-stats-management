@@ -1322,7 +1322,7 @@ def parse_github_issue_form(issue_body):
     
     # Clean up change_name for branch name (remove special chars)
     branch_name = re.sub(r'[^a-zA-Z0-9-_]', '-', change_name.lower())
-    branch_name = f"change/{branch_name}"
+    branch_name = f"change/{date}-{branch_name}"
     
     return {
         'change_name': change_name,
@@ -1339,7 +1339,7 @@ def fetch_firstcycling_html(race_url):
     Fetch HTML content from a FirstCycling.com race URL.
     
     Args:
-        race_url (str): The FirstCycling race URL (must contain pcm=1 parameter)
+        race_url (str): The FirstCycling race URL (should contain pcm=1 parameter for PCM data)
         
     Returns:
         tuple: (html_content, success boolean, error message)
@@ -1350,11 +1350,11 @@ def fetch_firstcycling_html(race_url):
         
         print(f"🌐 Fetching HTML from: {race_url}")
         
-        # Verify pcm=1 parameter is present
+        # Verify pcm=1 parameter is present (should be added by caller if missing)
         parsed_url = urlparse(race_url)
         query_params = parse_qs(parsed_url.query)
         if 'pcm' not in query_params or '1' not in query_params['pcm']:
-            raise ValueError("URL must contain pcm=1 parameter for PCM data extraction")
+            raise ValueError("URL must contain pcm=1 parameter for PCM data extraction (this should be added automatically)")
         
         # Download the page
         headers = {
@@ -1590,12 +1590,13 @@ def create_automated_change_file(namespace, change_name, form_data, cyclists):
         print(f"❌ {error_msg}")
         return None, False, error_msg
 
-def process_automated_change_request(issue_body):
+def process_automated_change_request(issue_body, author_override=None):
     """
     Complete processing of an automated change request from GitHub issue.
     
     Args:
         issue_body (str): Raw GitHub issue body text
+        author_override (str, optional): Override author field with this value (e.g., GitHub username)
         
     Returns:
         dict: Processing results with success status, file paths, and statistics
@@ -1612,6 +1613,12 @@ def process_automated_change_request(issue_body):
         # Step 1: Parse form data
         print("📋 Parsing GitHub issue form data...")
         form_data = parse_github_issue_form(issue_body)
+        
+        # Override author if provided and current author is empty
+        if author_override and not form_data.get('author'):
+            form_data['author'] = author_override
+            print(f"   🔄 Using GitHub actor as author: {author_override}")
+        
         result['form_data'] = form_data
         
         if not all([form_data['change_name'], form_data['date'], form_data['author'], 
