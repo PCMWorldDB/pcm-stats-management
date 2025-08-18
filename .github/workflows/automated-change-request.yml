@@ -85,6 +85,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: ${{ steps.process-change.outputs.branch_name }}
+          base: uat
           title: "Change: ${{ steps.process-change.outputs.change_name }}"
           body: |
             ## 📊 Automated Change Request

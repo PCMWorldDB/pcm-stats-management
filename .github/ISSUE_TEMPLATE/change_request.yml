@@ -53,9 +53,7 @@ body:
       description: Which namespace should this change be applied to?
       options:
         - 2025dev
-        - procyclingstats
-        - other
-      default: 0
+      default: 2025dev
     validations:
       required: true
 

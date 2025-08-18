@@ -1317,10 +1317,10 @@ def parse_github_issue_form(issue_body, issue_title=None):
     if issue_title:
         # Extract everything after "[STATS CHANGE]" from the title
         title_match = re.search(r'\[STATS CHANGE\]\s*(.+)', issue_title, re.IGNORECASE)
-        change_name = title_match.group(1).strip() if title_match else ""
+        title_name = title_match.group(1).strip() if title_match else ""
     else:
         # Fall back to form field extraction for backwards compatibility
-        change_name = extract_field(r'### Change Name\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+        title_name = extract_field(r'### Change Name\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     
     # Parse other form fields using regex patterns
     date = extract_field(r'### Date\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
@@ -1330,8 +1330,9 @@ def parse_github_issue_form(issue_body, issue_title=None):
     namespace = extract_field(r'### Namespace\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     
     # Clean up change_name for branch name (remove special chars)
-    branch_name = re.sub(r'[^a-zA-Z0-9-_]', '-', change_name.lower())
-    branch_name = f"change/{date}-{branch_name}"
+    change_name = re.sub(r'[^a-zA-Z0-9-_]', '-', title_name.lower())
+    change_name =  f'{date}-{change_name}'
+    branch_name = f"change/{change_name}"
     
     return {
         'change_name': change_name,

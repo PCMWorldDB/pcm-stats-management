@@ -84,7 +84,7 @@ procyclingstats
         result = parse_github_issue_form(self.sample_issue_body)
         
         # Check all required fields
-        assert result['change_name'] == 'Tour of Panama - Stage 1 Results'
+        assert result['change_name'] == '2025-08-06-tour-of-panama---stage-1-results'
         assert result['date'] == '2025-08-06'
         assert result['author'] == 'BenGe'
         assert result['race_url'] == 'https://firstcycling.com/race.php?r=32345&y=2025'
@@ -108,7 +108,7 @@ Test Change
         result = parse_github_issue_form(incomplete_body)
         
         # Should have some fields filled
-        assert result['change_name'] == 'Test Change'
+        assert result['change_name'] == '2025-08-06-test-change'
         assert result['date'] == '2025-08-06'
         
         # Missing fields should be empty strings
@@ -138,7 +138,7 @@ test
         result = parse_github_issue_form(special_body)
         
         # Check that special characters are properly handled in branch name
-        assert result['change_name'] == 'Test Race (2025) - Stage #1 & Results!'
+        assert result['change_name'] == '2025-08-06-test-race--2025----stage--1---results-'
         assert result['branch_name'] == 'change/2025-08-06-test-race--2025----stage--1---results-'
         
         # Only alphanumeric, hyphens, and underscores should remain
