@@ -47,12 +47,14 @@ jobs:
           CYCLISTS_FOUND=$(grep "cyclists_found=" $GITHUB_OUTPUT | tail -1 | cut -d'=' -f2)
           SUCCESS=$(grep "success=" $GITHUB_OUTPUT | tail -1 | cut -d'=' -f2)
           
-          # Create and checkout branch
-          echo "🌿 Creating branch: $BRANCH_NAME"
-          git checkout -b "$BRANCH_NAME"
+
           
           # Check if processing was successful
           if [ "$SUCCESS" = "true" ]; then
+            # Create and checkout branch
+            echo "🌿 Creating branch: $BRANCH_NAME"
+            git checkout -b "$BRANCH_NAME"
+
             echo "✅ Processing successful, committing changes..."
             
             # Add and commit changes
@@ -73,11 +75,6 @@ jobs:
             echo "❌ Processing failed, not committing changes"
             exit 1
           fi
-
-      - name: Push branch
-        if: steps.process-change.outputs.success == 'true'
-        run: |
-          echo "Branch push was handled in the previous step"
 
       - name: Create Pull Request
         if: steps.process-change.outputs.success == 'true'

@@ -1356,7 +1356,11 @@ def fetch_firstcycling_html(race_url):
     """
     try:
         import requests
+        import urllib3
         from urllib.parse import urlparse, parse_qs
+        
+        # Suppress SSL warnings when verify=False is used
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         print(f"🌐 Fetching HTML from: {race_url}")
         
@@ -1370,7 +1374,8 @@ def fetch_firstcycling_html(race_url):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        response = requests.get(race_url, headers=headers, timeout=30)
+        # Disable SSL verification for firstcycling.com due to certificate issues
+        response = requests.get(race_url, headers=headers, timeout=30, verify=False)
         response.raise_for_status()
         
         print(f"✅ Successfully fetched HTML content ({len(response.content)} bytes)")
@@ -1667,8 +1672,9 @@ def process_automated_change_request(issue_body, author_override=None, issue_tit
         
         if not scrape_success:
             print(f"⚠️  Scraping failed: {scrape_error}")
-            print("   Creating change file with empty cyclist list")
-            cyclists = []  # Continue with empty list
+            result['success'] = False
+            result['error'] = scrape_error
+            return result
         
         # Step 3: Create change file
         print("📝 Creating change file...")
