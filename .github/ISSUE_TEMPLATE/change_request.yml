@@ -53,7 +53,6 @@ body:
       description: Which namespace should this change be applied to?
       options:
         - 2025dev
-      default: 2025dev
     validations:
       required: true
 
