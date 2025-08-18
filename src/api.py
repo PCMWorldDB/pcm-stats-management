@@ -1357,12 +1357,29 @@ def fetch_firstcycling_html(race_url):
     try:
         import requests
         import urllib3
+        import proxyscrape
+        import time
         from urllib.parse import urlparse, parse_qs
         
         # Suppress SSL warnings when verify=False is used
         urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
         print(f"🌐 Fetching HTML from: {race_url}")
+        
+        # Check if running in GitHub Actions
+        is_github_actions = os.getenv('GITHUB_ACTIONS') == 'true'
+        if is_github_actions:
+            print("⚠️  Running in GitHub Actions - using proxy rotation to avoid IP blocks")
+        
+        # Get proxy list for rotation
+        try:
+            print("🔄 Fetching proxy list...")
+            collector = proxyscrape.create_collector('default', 'http')
+            proxy_list = collector.get_proxies()
+            print(f"   - Found {len(proxy_list)} available proxies")
+        except Exception as proxy_error:
+            print(f"⚠️  Could not fetch proxies: {proxy_error}, proceeding without proxy")
+            proxy_list = []
         
         # Verify pcm=1 parameter is present (should be added by caller if missing)
         parsed_url = urlparse(race_url)
@@ -1385,12 +1402,83 @@ def fetch_firstcycling_html(race_url):
             'Cache-Control': 'max-age=0'
         }
         
-        # Disable SSL verification for firstcycling.com due to certificate issues
-        response = requests.get(race_url, headers=headers, timeout=30, verify=False)
-        response.raise_for_status()
+        # Try multiple attempts with proxy rotation
+        max_retries = len(proxy_list) + 1 if proxy_list else 3  # Try each proxy plus direct connection
+        retry_delays = [2, 5, 10]  # Exponential backoff
         
-        print(f"✅ Successfully fetched HTML content ({len(response.content)} bytes)")
-        return response.content, True, None
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    delay = retry_delays[min(attempt - 1, len(retry_delays) - 1)]
+                    print(f"⏳ Retrying in {delay} seconds (attempt {attempt + 1}/{max_retries})...")
+                    time.sleep(delay)
+                
+                # Setup proxy for this attempt
+                proxies = None
+                if proxy_list and attempt < len(proxy_list):
+                    proxy = proxy_list[attempt]
+                    proxy_url = f"http://{proxy.host}:{proxy.port}"
+                    proxies = {
+                        'http': proxy_url,
+                        'https': proxy_url
+                    }
+                    print(f"🔄 Using proxy: {proxy.host}:{proxy.port}")
+                elif attempt == 0 and not proxy_list:
+                    print("🔗 Attempting direct connection (no proxies available)")
+                else:
+                    print("🔗 Attempting direct connection (no more proxies)")
+                
+                # Make request with or without proxy
+                response = requests.get(
+                    race_url, 
+                    headers=headers, 
+                    timeout=30, 
+                    verify=False, 
+                    proxies=proxies
+                )
+                response.raise_for_status()
+                
+                success_msg = f"✅ Successfully fetched HTML content ({len(response.content)} bytes)"
+                if proxies:
+                    success_msg += f" via proxy {proxy.host}:{proxy.port}"
+                print(success_msg)
+                return response.content, True, None
+                
+            except requests.exceptions.HTTPError as e:
+                proxy_info = f" via proxy {proxy.host}:{proxy.port}" if proxies else " (direct connection)"
+                if e.response.status_code == 403:
+                    if attempt == max_retries - 1:
+                        # On final attempt for 403, provide helpful error message
+                        error_msg = f"Access denied (403) for {race_url}. This may be due to:\n" \
+                                  f"   • IP blocking (tried {len(proxy_list)} proxies + direct connection)\n" \
+                                  f"   • Rate limiting from the website\n" \
+                                  f"   • Anti-bot protection\n" \
+                                  f"   Consider using a different proxy service or running locally."
+                        print(f"❌ {error_msg}")
+                        return None, False, error_msg
+                    else:
+                        print(f"❌ 403 Forbidden on attempt {attempt + 1}{proxy_info}, trying next...")
+                        continue
+                else:
+                    # Other HTTP errors, don't retry
+                    raise e
+            except (requests.exceptions.ProxyError, requests.exceptions.ConnectTimeout, 
+                    requests.exceptions.ConnectionError) as e:
+                proxy_info = f" via proxy {proxy.host}:{proxy.port}" if proxies else " (direct connection)"
+                if attempt == max_retries - 1:
+                    # Final attempt failed
+                    raise e
+                else:
+                    print(f"❌ Connection error on attempt {attempt + 1}{proxy_info}: {str(e)}")
+                    continue
+            except requests.exceptions.RequestException as e:
+                proxy_info = f" via proxy {proxy.host}:{proxy.port}" if proxies else " (direct connection)"
+                if attempt == max_retries - 1:
+                    # Final attempt failed
+                    raise e
+                else:
+                    print(f"❌ Network error on attempt {attempt + 1}{proxy_info}: {str(e)}")
+                    continue
         
     except requests.RequestException as e:
         error_msg = f"Network error accessing {race_url}: {str(e)}"
