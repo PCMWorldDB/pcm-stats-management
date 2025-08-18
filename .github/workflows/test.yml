@@ -10,6 +10,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Skip tests for PRs from change/* branches (automated change requests)
+    if: ${{ !startsWith(github.head_ref, 'change/') }}
     strategy:
       matrix:
         python-version: [3.8, 3.9]  # Test on multiple Python versions
