@@ -1365,16 +1365,53 @@ def fetch_firstcycling_html(race_url):
         if 'pcm' not in query_params or '1' not in query_params['pcm']:
             raise ValueError("URL must contain pcm=1 parameter for PCM data extraction (this should be added automatically)")
         
-        # Use the commons function for proxy-enabled requests
+        # For FirstCycling.com, try Selenium first since it works reliably
+        print("🔄 Trying Selenium WebDriver (most reliable for FirstCycling.com)...")
+        content, success, error = commons.fetch_with_selenium(
+            url=race_url,
+            timeout=30,
+            headless=True
+        )
+        
+        if success:
+            print(f"✅ Selenium successful - fetched {len(content)} bytes")
+            return content, success, error
+        else:
+            print(f"⚠️  Selenium failed: {error}")
+            print("🔄 Falling back to standard HTTP methods...")
+        
+        # Fallback to standard HTTP methods with proxy rotation
         content, success, error = commons.make_request_with_proxy_rotation(
             url=race_url,
             timeout=30,
             verify=False,  # Disable SSL verification for firstcycling.com
             proxy_limit=10,
-            enable_ssl_warnings=False
+            enable_ssl_warnings=False,
+            use_proxies=None  # Auto-detect: False locally, True in GitHub Actions
         )
         
-        return content, success, error
+        if success:
+            return content, success, error
+        else:
+            # Provide helpful error message for common issues
+            if "403" in str(error):
+                error_msg = (f"FirstCycling.com is blocking requests (403 Forbidden). This can happen due to:\n"
+                           f"   • Anti-bot protection detecting automated requests\n"
+                           f"   • IP-based rate limiting\n"
+                           f"   • Geographic restrictions\n"
+                           f"   \n"
+                           f"   Selenium WebDriver also failed, which suggests:\n"
+                           f"   • Very aggressive anti-bot protection\n"
+                           f"   • Network connectivity issues\n"
+                           f"   • ChromeDriver not available/compatible\n"
+                           f"   \n"
+                           f"   For development/testing, you can:\n"
+                           f"   • Save sample HTML files and use those for testing\n"
+                           f"   • Use a VPN or different network\n"
+                           f"   • Run the code in GitHub Actions where proxies are used")
+                return None, False, error_msg
+            else:
+                return content, success, error
         
     except Exception as e:
         error_msg = f"Error fetching HTML: {str(e)}"

@@ -208,18 +208,12 @@ test
         assert error is None
         assert len(cyclists) == 2
 
-    @patch('src.utils.commons.get_proxy_list')
-    @patch('requests.get')
-    def test_fetch_firstcycling_html_success(self, mock_get, mock_get_proxy_list):
-        """Test successful HTML fetching."""
-        # Mock proxy function to return no proxies (direct connection)
-        mock_get_proxy_list.return_value = []
-        
-        # Mock successful response
-        mock_response = MagicMock()
-        mock_response.content = b"<html>Test content</html>"
-        mock_response.raise_for_status.return_value = None
-        mock_get.return_value = mock_response
+    @patch('src.utils.commons.fetch_with_selenium')
+    @patch('src.utils.commons.make_request_with_proxy_rotation')
+    def test_fetch_firstcycling_html_success(self, mock_make_request, mock_selenium):
+        """Test successful HTML fetching with Selenium."""
+        # Mock Selenium to return success
+        mock_selenium.return_value = (b"<html>Test content</html>", True, None)
         
         url = "https://firstcycling.com/race.php?r=123&pcm=1"
         content, success, error = fetch_firstcycling_html(url)
@@ -228,22 +222,19 @@ test
         assert error is None
         assert content == b"<html>Test content</html>"
         
-        # Check that the direct connection call was made
-        mock_get.assert_called_once()
-        args, kwargs = mock_get.call_args
-        assert 'headers' in kwargs
-        assert 'User-Agent' in kwargs['headers']
-        assert kwargs.get('proxies') is None  # Direct connection
+        # Check that Selenium was called first
+        mock_selenium.assert_called_once()
+        # Make sure the fallback HTTP method was not called since Selenium succeeded
+        mock_make_request.assert_not_called()
 
-    @patch('src.utils.commons.get_proxy_list')
-    @patch('requests.get')
-    def test_fetch_firstcycling_html_network_error(self, mock_get, mock_get_proxy_list):
-        """Test HTML fetching with network error."""
-        # Mock proxy function to return no proxies (direct connection)
-        mock_get_proxy_list.return_value = []
-        
-        from requests import RequestException
-        mock_get.side_effect = RequestException("Network error")
+    @patch('src.utils.commons.fetch_with_selenium')
+    @patch('src.utils.commons.make_request_with_proxy_rotation')
+    def test_fetch_firstcycling_html_network_error(self, mock_make_request, mock_selenium):
+        """Test HTML fetching with network error (both Selenium and HTTP fail)."""
+        # Mock Selenium to fail
+        mock_selenium.return_value = (None, False, "Selenium error: ChromeDriver not found")
+        # Mock HTTP method to also fail
+        mock_make_request.return_value = (None, False, "Network error accessing https://firstcycling.com/race.php?r=123&pcm=1: Network error")
         
         url = "https://firstcycling.com/race.php?r=123&pcm=1"
         content, success, error = fetch_firstcycling_html(url)
@@ -252,11 +243,8 @@ test
         assert content is None
         assert "Network error" in error
 
-    @patch('src.utils.commons.get_proxy_list')
-    def test_fetch_firstcycling_html_missing_pcm_parameter(self, mock_get_proxy_list):
+    def test_fetch_firstcycling_html_missing_pcm_parameter(self):
         """Test HTML fetching with missing pcm parameter."""
-        # Mock proxy function to return no proxies (direct connection)
-        mock_get_proxy_list.return_value = []
         
         url = "https://firstcycling.com/race.php?r=123"
         content, success, error = fetch_firstcycling_html(url)
