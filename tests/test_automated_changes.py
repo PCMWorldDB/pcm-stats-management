@@ -208,14 +208,12 @@ test
         assert error is None
         assert len(cyclists) == 2
 
-    @patch('proxyscrape.create_collector')
+    @patch('src.utils.commons.get_proxy_list')
     @patch('requests.get')
-    def test_fetch_firstcycling_html_success(self, mock_get, mock_create_collector):
+    def test_fetch_firstcycling_html_success(self, mock_get, mock_get_proxy_list):
         """Test successful HTML fetching."""
-        # Mock proxy collector to return no proxies (direct connection)
-        mock_collector = MagicMock()
-        mock_collector.get_proxies.return_value = []
-        mock_create_collector.return_value = mock_collector
+        # Mock proxy function to return no proxies (direct connection)
+        mock_get_proxy_list.return_value = []
         
         # Mock successful response
         mock_response = MagicMock()
@@ -237,14 +235,12 @@ test
         assert 'User-Agent' in kwargs['headers']
         assert kwargs.get('proxies') is None  # Direct connection
 
-    @patch('proxyscrape.create_collector')
+    @patch('src.utils.commons.get_proxy_list')
     @patch('requests.get')
-    def test_fetch_firstcycling_html_network_error(self, mock_get, mock_create_collector):
+    def test_fetch_firstcycling_html_network_error(self, mock_get, mock_get_proxy_list):
         """Test HTML fetching with network error."""
-        # Mock proxy collector to return no proxies (direct connection)
-        mock_collector = MagicMock()
-        mock_collector.get_proxies.return_value = []
-        mock_create_collector.return_value = mock_collector
+        # Mock proxy function to return no proxies (direct connection)
+        mock_get_proxy_list.return_value = []
         
         from requests import RequestException
         mock_get.side_effect = RequestException("Network error")
@@ -256,13 +252,11 @@ test
         assert content is None
         assert "Network error" in error
 
-    @patch('proxyscrape.create_collector')
-    def test_fetch_firstcycling_html_missing_pcm_parameter(self, mock_create_collector):
+    @patch('src.utils.commons.get_proxy_list')
+    def test_fetch_firstcycling_html_missing_pcm_parameter(self, mock_get_proxy_list):
         """Test HTML fetching with missing pcm parameter."""
-        # Mock proxy collector to return no proxies (direct connection)
-        mock_collector = MagicMock()
-        mock_collector.get_proxies.return_value = []
-        mock_create_collector.return_value = mock_collector
+        # Mock proxy function to return no proxies (direct connection)
+        mock_get_proxy_list.return_value = []
         
         url = "https://firstcycling.com/race.php?r=123"
         content, success, error = fetch_firstcycling_html(url)

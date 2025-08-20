@@ -9,15 +9,9 @@ body:
       value: |
         ## 📊 PCM Stats Change Request
         
-        Fill out this form to automatically create a new stats change. This will:
-        1. Create a new change branch
-        2. Generate a change.yaml file with cyclists from the race URL
-        3. Create a pull request for review
-        
-        **Author:** Your GitHub username will be automatically used as the author.
-        **Change Name:** Will be extracted from the issue title after "[STATS CHANGE]".
-        
-        ---
+        Fill out this form to create a new stats change request.
+        Required fields: Title, Date, Race URL
+        ----
 
   - type: input
     id: date
