@@ -19,13 +19,10 @@ class TestAutomatedChangeFunctions:
     
     def setup_method(self):
         """Set up test data for each test method."""
-        # Sample GitHub issue form body
+        # Sample GitHub issue form body (without date field - now calculated automatically)
         self.sample_issue_body = '''
 ### Change Name
 Tour of Panama - Stage 1 Results
-
-### Date
-2025-08-06
 
 ### Author
 BenGe
@@ -79,13 +76,17 @@ procyclingstats
             }
         ]
 
-    def test_parse_github_issue_form_valid_data(self):
-        """Test parsing valid GitHub issue form data."""
+    @patch('src.api.datetime')
+    def test_parse_github_issue_form_valid_data(self, mock_datetime):
+        """Test parsing valid GitHub issue form data with automatic date calculation."""
+        # Mock datetime.now() to return a fixed date
+        mock_datetime.now.return_value.strftime.return_value = '2025-08-06'
+        
         result = parse_github_issue_form(self.sample_issue_body)
         
         # Check all required fields
         assert result['change_name'] == '2025-08-06-tour-of-panama---stage-1-results'
-        assert result['date'] == '2025-08-06'
+        assert result['date'] == '2025-08-06'  # Automatically calculated
         assert result['author'] == 'BenGe'
         assert result['race_url'] == 'https://firstcycling.com/race.php?r=32345&y=2025'
         assert result['description'] == 'Adding results from Stage 1 of the Tour of Panama. Great race with strong competition.'
@@ -95,21 +96,25 @@ procyclingstats
         # Check that branch name is properly sanitized
         assert ' ' not in result['branch_name']
         assert result['branch_name'].startswith('change/')
+        
+        # Verify datetime.now() was called
+        mock_datetime.now.assert_called_once()
 
-    def test_parse_github_issue_form_missing_fields(self):
+    @patch('src.api.datetime')
+    def test_parse_github_issue_form_missing_fields(self, mock_datetime):
         """Test parsing GitHub issue form with missing fields."""
+        # Mock datetime.now() to return a fixed date
+        mock_datetime.now.return_value.strftime.return_value = '2025-08-06'
+        
         incomplete_body = '''
 ### Change Name
 Test Change
-
-### Date
-2025-08-06
 '''
         result = parse_github_issue_form(incomplete_body)
         
         # Should have some fields filled
         assert result['change_name'] == '2025-08-06-test-change'
-        assert result['date'] == '2025-08-06'
+        assert result['date'] == '2025-08-06'  # Automatically calculated
         
         # Missing fields should be empty strings
         assert result['author'] == ''
@@ -117,14 +122,15 @@ Test Change
         assert result['description'] == ''
         assert result['namespace'] == ''
 
-    def test_parse_github_issue_form_special_characters(self):
+    @patch('src.api.datetime')
+    def test_parse_github_issue_form_special_characters(self, mock_datetime):
         """Test parsing with special characters in change name."""
+        # Mock datetime.now() to return a fixed date
+        mock_datetime.now.return_value.strftime.return_value = '2025-08-06'
+        
         special_body = '''
 ### Change Name
 Test Race (2025) - Stage #1 & Results!
-
-### Date
-2025-08-06
 
 ### Author
 Test Author

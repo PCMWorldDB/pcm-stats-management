@@ -10,17 +10,9 @@ body:
         ## 📊 PCM Stats Change Request
         
         Fill out this form to create a new stats change request.
-        Required fields: Title, Date, Race URL
+        Required fields: Title, Race URL
+        The date will be automatically set based on when the issue is created.
         ----
-
-  - type: input
-    id: date
-    attributes:
-      label: Date
-      description: Date of the change (YYYY-MM-DD format)
-      placeholder: "2025-08-15"
-    validations:
-      required: true
 
   - type: input
     id: race_url

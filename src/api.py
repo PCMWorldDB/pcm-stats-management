@@ -3,6 +3,7 @@ import os
 import yaml
 import re
 from pathlib import Path
+from datetime import datetime
 from src.utils import commons
 
 def _find_change_file(change_dir_path):
@@ -1306,7 +1307,6 @@ def parse_github_issue_form(issue_body, issue_title=None):
     Returns:
         dict: Parsed form data with keys: change_name, date, author, race_url, description, namespace, branch_name
     """
-    import re
     
     def extract_field(pattern, text):
         """Extract a field value using regex pattern."""
@@ -1322,8 +1322,11 @@ def parse_github_issue_form(issue_body, issue_title=None):
         # Fall back to form field extraction for backwards compatibility
         title_name = extract_field(r'### Change Name\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     
-    # Parse other form fields using regex patterns
-    date = extract_field(r'### Date\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
+    # Calculate date automatically based on when the pipeline runs (current date)
+    date = datetime.now().strftime('%Y-%m-%d')
+    print(f"📅 Automatically calculated date: {date}")
+    
+    # Parse other form fields using regex patterns (date field no longer expected in form)
     author = extract_field(r'### Author\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     race_url = extract_field(r'### Race URL\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)
     description = extract_field(r'### Description\s*\n\s*(.+?)(?=\n###|\Z)', issue_body)

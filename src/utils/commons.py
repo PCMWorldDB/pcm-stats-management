@@ -1,4 +1,8 @@
 import os
+import requests
+import urllib3
+import time
+import random
 
 STAT_KEYS = ['fla', 'mo', 'mm', 'dh', 'cob', 'tt', 'prl', 'spr', 'acc', 'end', 'res', 'rec', 'hil', 'att']
 DATA_PATH = os.path.join('data')
@@ -76,11 +80,7 @@ def make_request_with_proxy_rotation(url, headers=None, timeout=30, verify=True,
     Returns:
         tuple: (response_content, success_boolean, error_message)
     """
-    try:
-        import requests
-        import urllib3
-        import time
-        
+    try: 
         # Suppress SSL warnings if requested
         if not enable_ssl_warnings:
             urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -269,8 +269,6 @@ def fetch_with_selenium(url, timeout=30, headless=True):
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
         from selenium.common.exceptions import TimeoutException, WebDriverException
-        import time
-        import random
         
         print(f"🌐 Using Selenium WebDriver to fetch: {url}")
         
