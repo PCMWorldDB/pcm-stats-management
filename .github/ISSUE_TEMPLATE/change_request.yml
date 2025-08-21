@@ -1,4 +1,4 @@
-name: 📊 PCM STATS CR Request
+name: 📊 PCM STATS Change Request
 description: Request a new change to cyclist statistics
 title: "[STATS CR] "
 labels: ["change-request", "automated"]
@@ -7,9 +7,9 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## 📊 PCM STATS CR Request
-        
-        Fill out this form to create a new STATS CR request.
+        ## 📊 PCM Stats - Change Request
+
+        Fill out this form to create a new Stats Change Request.
         ----
 
   - type: input

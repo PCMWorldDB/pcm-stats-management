@@ -1618,7 +1618,7 @@ def create_automated_change_file(namespace, change_name, form_data, cyclists):
         class ChangeYAMLDumper(yaml.SafeDumper):
             def represent_dict(self, data):
                 # Check if this is a stats dictionary (nested inside a cyclist)
-                if all(key in commons.STATS_KEYS for key in data.keys()):
+                if all(key in commons.STAT_KEYS for key in data.keys()):
                     return self.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=True)
                 else:
                     return self.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=False)
