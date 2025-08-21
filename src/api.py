@@ -1492,7 +1492,6 @@ def parse_firstcycling_html(html_content):
                                 'first_cycling_id': int(rider_id)  # For compatibility
                             }
                             cyclists.append(cyclist_data)
-                            print(f"   Found: {name} (ID: {rider_id}, Row: {row_index})")
         
         # Remove duplicates based on rider_id (keep first occurrence)
         seen_ids = set()
