@@ -379,9 +379,9 @@ test
         assert matched_cyclist['pcm_id'] == '12345'
         assert matched_cyclist['name'] == 'Lamperti Luke'
         assert matched_cyclist['first_cycling_id'] == 98765
-        assert matched_cyclist['fla'] == 85
-        assert matched_cyclist['mo'] == 70
-        assert matched_cyclist['tt'] == 75
+        assert matched_cyclist['stats']['fla'] == 85
+        assert matched_cyclist['stats']['mo'] == 70
+        assert matched_cyclist['stats']['tt'] == 75
 
     @patch('src.api.commons.get_path')
     @patch('os.path.exists')
@@ -504,8 +504,8 @@ test
         assert matched_cyclist['pcm_id'] == '100'
         assert matched_cyclist['name'] == 'Found Rider'
         assert matched_cyclist['first_cycling_id'] == 777
-        assert matched_cyclist['fla'] == 85
-        assert matched_cyclist['mo'] == 70
+        assert matched_cyclist['stats']['fla'] == 85
+        assert matched_cyclist['stats']['mo'] == 70
 
     @patch('src.api.commons.get_path')
     @patch('os.makedirs')

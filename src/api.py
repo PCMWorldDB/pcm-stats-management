@@ -1592,9 +1592,9 @@ def create_automated_change_file(namespace, change_name, form_data, cyclists):
                     'first_cycling_id': first_cycling_id
                 }
                 
-                # Include existing stats if available
+                # Include existing stats if available, nested in a stats dictionary
                 if 'stats' in found_cyclist:
-                    cyclist_entry.update(found_cyclist['stats'])
+                    cyclist_entry['stats'] = found_cyclist['stats']
                 
                 matched_cyclists.append(cyclist_entry)
                 print(f"   ✅ Matched: {scraped_name} -> {found_cyclist['name']} (PCM ID: {found_pcm_id})")
@@ -1613,8 +1613,21 @@ def create_automated_change_file(namespace, change_name, form_data, cyclists):
         
         # Write change.yaml file
         change_file_path = os.path.join(change_dir, 'change.yaml')
+        
+        # Custom YAML dumper for change formatting (same as stats.yaml)
+        class ChangeYAMLDumper(yaml.SafeDumper):
+            def represent_dict(self, data):
+                # Check if this is a stats dictionary (nested inside a cyclist)
+                if all(key in commons.STATS_KEYS for key in data.keys()):
+                    return self.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=True)
+                else:
+                    return self.represent_mapping('tag:yaml.org,2002:map', data.items(), flow_style=False)
+        
+        # Override the dict representer
+        ChangeYAMLDumper.add_representer(dict, ChangeYAMLDumper.represent_dict)
+        
         with open(change_file_path, 'w', encoding='utf-8') as f:
-            yaml.dump(change_data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+            yaml.dump(change_data, f, Dumper=ChangeYAMLDumper, default_flow_style=False, sort_keys=False, allow_unicode=True)
         
         print(f"✅ Created change file: {change_file_path}")
         print(f"   - Change: {change_name}")
