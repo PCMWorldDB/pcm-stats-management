@@ -1,17 +1,15 @@
-name: 📊 PCM Stats Change Request
+name: 📊 PCM STATS CR Request
 description: Request a new change to cyclist statistics
-title: "[STATS CHANGE] "
+title: "[STATS CR] "
 labels: ["change-request", "automated"]
 assignees: []
 body:
   - type: markdown
     attributes:
       value: |
-        ## 📊 PCM Stats Change Request
+        ## 📊 PCM STATS CR Request
         
-        Fill out this form to create a new stats change request.
-        Required fields: Title, Race URL
-        The date will be automatically set based on when the issue is created.
+        Fill out this form to create a new STATS CR request.
         ----
 
   - type: input
@@ -23,15 +21,6 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: description
-    attributes:
-      label: Description
-      description: Brief description of the change
-      placeholder: "Update stats after Tour de France Stage 1..."
-    validations:
-      required: false
-
   - type: dropdown
     id: namespace
     attributes:
@@ -42,13 +31,11 @@ body:
     validations:
       required: true
 
-  - type: checkboxes
-    id: terms
+  - type: textarea
+    id: description
     attributes:
-      label: Confirmation
-      description: Please confirm the following
-      options:
-        - label: I have verified the race URL is correct and accessible
-          required: true
-        - label: I understand this will create an automated pull request
-          required: true
+      label: Description
+      description: Brief description of the change
+      placeholder: "Update stats after Tour de France Stage 1..."
+    validations:
+      required: false

@@ -6,7 +6,7 @@ on:
 
 jobs:
   process-stats-change-request:
-    if: startsWith(github.event.issue.title, '[STATS CHANGE]')
+    if: startsWith(github.event.issue.title, '[STATS CR]')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository

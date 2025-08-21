@@ -1315,8 +1315,8 @@ def parse_github_issue_form(issue_body, issue_title=None):
     
     # Extract change_name from issue title if provided, otherwise fall back to form field
     if issue_title:
-        # Extract everything after "[STATS CHANGE]" from the title
-        title_match = re.search(r'\[STATS CHANGE\]\s*(.+)', issue_title, re.IGNORECASE)
+        # Extract everything after "[STATS CR]" from the title
+        title_match = re.search(r'\[STATS CR\]\s*(.+)', issue_title, re.IGNORECASE)
         title_name = title_match.group(1).strip() if title_match else ""
     else:
         # Fall back to form field extraction for backwards compatibility

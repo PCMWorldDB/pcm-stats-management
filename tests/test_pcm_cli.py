@@ -342,7 +342,7 @@ procyclingstats"""
         mock_process.return_value = mock_result
         
         # Call function with issue title
-        issue_title = "[STATS CHANGE] Tour de France Stage 1"
+        issue_title = "[STATS CR] Tour de France Stage 1"
         result = pcm_cli.process_automated_change(self.sample_issue_body, "github_user123", issue_title)
         
         # Assertions
